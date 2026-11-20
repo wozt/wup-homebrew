@@ -88,7 +88,9 @@ class Conn:
     def cmd_auth(self, p):
         if self.token is None:
             return 0
-        if hmac.compare_digest(p, self.token):
+        # payload: token_len u8 + token bytes (what libwup's netfs.c sends)
+        tok = p[1:1 + p[0]] if p else b''
+        if hmac.compare_digest(tok, self.token):
             self.authed = True
             return 0
         return errno.EACCES
@@ -156,12 +158,18 @@ class Conn:
         hid = self.next_id
         self.next_id += 1
         self.handles[hid] = fd
-        return 0, struct.pack('<I', hid)
+        try:
+            st = os.fstat(fd)
+            size = st.st_size if statmod.S_ISREG(st.st_mode) else 0
+            typ = T_DIR if statmod.S_ISDIR(st.st_mode) else T_REG
+        except OSError:
+            size, typ = 0, T_REG
+        return 0, struct.pack('<IBQ', hid, typ, size & 0xFFFFFFFFFFFFFFFF)
 
     def cmd_read(self, p):
         if len(p) < 16:
             raise os_error(errno.EINVAL)
-        hid, off, ln = struct.unpack_from('<IQQ', p)
+        hid, off, ln = struct.unpack_from('<IQI', p)   # handle u32, offset u64, len u32 (netfs.c)
         ln = min(ln, MAX_READ)
         fd = self.handles.get(hid)
         if fd is None:

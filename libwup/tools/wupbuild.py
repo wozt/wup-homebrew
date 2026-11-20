@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import paths
 BASE, LIMIT = 0x350000, 0x380000
 NM = paths.NM
-LIB = ([os.path.join(paths.SRC, f) for f in ('wup.c', 'sys.c', 'kernel.c', 'pthread.c', 'time.c', 'atomic.c', 'gfx.c', 'fonts.c', 'mmu.c', 'wup_hw.c', 'fs.c', 'mem.S')]
+LIB = ([os.path.join(paths.SRC, f) for f in ('wup.c', 'sys.c', 'kernel.c', 'pthread.c', 'time.c', 'atomic.c', 'gfx.c', 'fonts.c', 'mmu.c', 'wup_hw.c', 'fs.c', 'netfs.c', 'mem.S')]
        + [os.path.join(paths.THIRD, 'littlefs', f) for f in ('lfs.c', 'lfs_util.c')])
 
 
@@ -75,7 +75,9 @@ def build(srcs, name, out, incs=(), defs=(), thumb=False, net=False, large=None,
         if s in thumb_srcs: f = [x if x != '-marm' else '-mthumb' for x in f] + ['-Os']   # size over speed
         if s.endswith(('.s', '.S')): f = [x for x in f if x not in ('-nostdlib',)]
         r = subprocess.run(['clang'] + f + ['-c', s, '-o', o], capture_output=True, text=True)
-        if r.returncode: sys.exit('compile %s failed:\n%s' % (s, r.stderr[-4000:]))
+        if r.returncode:
+            if os.environ.get('WUP_DEBUG_CMD'): print('FAILED CMD:', ' '.join(['clang'] + f + ['-c', s, '-o', o]))
+            sys.exit('compile %s failed:\n%s' % (s, r.stderr[-4000:]))
         if r.stderr.strip() and not is_lib and not third: print(r.stderr.strip()[-2000:])
         objs.append(o)
     in_app = [o for s, o in zip(lib + srcs, objs) if s in app_text]

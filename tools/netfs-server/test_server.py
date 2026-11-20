@@ -43,7 +43,8 @@ class Client:
         self.s.settimeout(10)
         self.buf = b''
         if token is not None:
-            self.cmd(1, token.encode() if isinstance(token, str) else token)
+            t = token.encode() if isinstance(token, str) else token
+            self.cmd(1, bytes([len(t)]) + t)          # AUTH: len u8 + token (what netfs.c sends)
 
     def _recvn(self, n):
         while len(self.buf) < n:
@@ -140,9 +141,9 @@ class NetfsTest(unittest.TestCase):
         c = Client(self.port)                       # no AUTH at all
         st, _ = c.cmd(2)                            # PING without auth
         self.assertEqual(st, srv.errno.EPERM)
-        st, _ = c.cmd(1, b'wrong')
+        st, _ = c.cmd(1, bytes([5]) + b'wrong')
         self.assertEqual(st, srv.errno.EACCES)
-        st, _ = c.cmd(1, b's3cret')
+        st, _ = c.cmd(1, bytes([6]) + b's3cret')
         self.assertEqual(st, 0)
         st, _ = c.cmd(2)
         self.assertEqual(st, 0)
@@ -204,16 +205,16 @@ class NetfsTest(unittest.TestCase):
     def test_read_small_and_offsets(self):
         c = self.client()
         d = c.ok(7, path_bytes('/hello.txt') + b'\x00')
-        (h,) = struct.unpack('<I', d)
-        st, data = c.cmd(8, struct.pack('<IQQ', h, 0, 5))
+        (h, _ty, _sz) = struct.unpack('<IBQ', d)
+        st, data = c.cmd(8, struct.pack('<IQI', h, 0, 5))
         self.assertEqual(st, 0)
         self.assertEqual(data, b'hello')
-        st, data = c.cmd(8, struct.pack('<IQQ', h, 6, 100))   # past EOF partly
+        st, data = c.cmd(8, struct.pack('<IQI', h, 6, 100))   # past EOF partly
         self.assertEqual(data, b'netfs\n')
-        st, data = c.cmd(8, struct.pack('<IQQ', h, 6, 5))     # inside
+        st, data = c.cmd(8, struct.pack('<IQI', h, 6, 5))     # inside
         self.assertEqual(data, b'netfs')
         c.ok(9, struct.pack('<I', h))
-        st, _ = c.cmd(8, struct.pack('<IQQ', h, 0, 1))
+        st, _ = c.cmd(8, struct.pack('<IQI', h, 0, 1))
         self.assertEqual(st, srv.errno.EBADF)
         c.close()
 
@@ -223,11 +224,11 @@ class NetfsTest(unittest.TestCase):
             real = os.path.join(self.root, 'ROMs', 'rom%d.mb' % mb)
             size = os.path.getsize(real)
             d = c.ok(7, path_bytes('/ROMs/rom%d.mb' % mb) + b'\x00')
-            (h,) = struct.unpack('<I', d)
+            (h, _ty, _sz) = struct.unpack('<IBQ', d)
             offsets = [0, 1, size // 3, size - 4096, size - 1, size // 2]
             for off in offsets:
                 want = min(4096, size - off)
-                st, data = c.cmd(8, struct.pack('<IQQ', h, off, want))
+                st, data = c.cmd(8, struct.pack('<IQI', h, off, want))
                 self.assertEqual(st, 0)
                 self.assertEqual(len(data), want, 'short read at %d of %d' % (off, size))
                 with open(real, 'rb') as f:
@@ -238,7 +239,7 @@ class NetfsTest(unittest.TestCase):
                 off = 0
                 while off < size:
                     want = min(65536, size - off)
-                    st, data = c.cmd(8, struct.pack('<IQQ', h, off, want))
+                    st, data = c.cmd(8, struct.pack('<IQI', h, off, want))
                     self.assertEqual(st, 0)
                     self.assertEqual(len(data), want)
                     with open(real, 'rb') as f:
@@ -267,10 +268,10 @@ class NetfsTest(unittest.TestCase):
     def test_reconnect_and_bad_input(self):
         c = self.client()
         d = c.ok(7, path_bytes('/hello.txt') + b'\x00')
-        (h,) = struct.unpack('<I', d)
+        (h, _ty, _sz) = struct.unpack('<IBQ', d)
         c.s.close()                                 # drop mid-session
         c2 = self.client()                          # new connection: old handle is gone
-        st, _ = c2.cmd(8, struct.pack('<IQQ', h, 0, 4))
+        st, _ = c2.cmd(8, struct.pack('<IQI', h, 0, 4))
         self.assertEqual(st, srv.errno.EBADF)
         # malformed: bad version, oversized len, garbage command
         c3 = self.client()

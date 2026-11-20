@@ -28,13 +28,13 @@ connection idle timeout 30 s.
 
 | cmd | name | request payload | response payload |
 |---|---|---|---|
-| 1 | AUTH | token bytes (0–255) | empty |
+| 1 | AUTH | `token_len u8` + token bytes (0–255) | empty |
 | 2 | PING | empty | empty |
 | 3 | STAT | path (utf-8, starts with `/`) | `type u8` (0=reg, 1=dir), `size u64` |
 | 4 | OPENDIR | path | `cookie u32` |
 | 5 | READDIR | `cookie u32`, `max u32` | entries + `next u32` trailer |
 | 6 | FREEDIR | `cookie u32` | empty |
-| 7 | OPEN | path bytes + `flags u8` (bit0 = write → `EROFS`) | `handle u32` |
+| 7 | OPEN | path bytes + `flags u8` (bit0 = write → `EROFS`) | `handle u32`, `type u8`, `size u64` |
 | 8 | READ | `handle u32`, `offset u64`, `len u32` | file bytes (short at EOF) |
 | 9 | CLOSE | `handle u32` | empty |
 
