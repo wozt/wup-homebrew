@@ -20,6 +20,7 @@
 #endif
 typedef struct { char id[32], version[16]; uint32_t off, size, crc; } entry_t;
 
+static uint32_t get32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
 static int note(const char *path, const char *text) { return fs_write(path, text, (uint32_t)strlen(text)) == (int)strlen(text) ? 0 : -1; }
 static int copy_app(uint32_t base, const entry_t *e, void (*tick)(void)) {
     static uint8_t buf[4096];
@@ -52,7 +53,11 @@ static int each(int (*f)(uint32_t base, const entry_t *e, void (*tick)(void)), v
     uint32_t base = (sel[0] == 1 ? 0x500000u : 0x100000u) + BUNDLE_OFF;
     if (fs_flash_read(base, h, 4) || h[0] != 0x31574643u) return 0;          /* "CFW1": a bundle here */
     if (fs_flash_read(base + 0x2000, h, 20) || h[0] != 0x554e4d57u) return 0; /* "WMNU" */
-    uint32_t at = (0x3000 + h[1] + 0xfff) & ~0xfffu;
+    uint32_t at = (0x3000 + h[1] + 0xfff) & ~0xfffu;   /* the image ends here: a {"WUPB"} bigmem blob may follow (mkflash) */
+    static uint8_t bh[16];
+    if (!fs_flash_read(base + at, bh, sizeof bh) && get32(bh) == 0x42505557u) {
+        at = (at + 16 + get32(bh + 4) + 0xfff) & ~0xfffu;   /* past the blob's header and its deflated code */
+    }
     if (fs_flash_read(base + at, table, sizeof table) || memcmp(table, "WAPS", 4)) return 0;
     uint32_t count, n = 0; memcpy(&count, table + 4, 4);
     for (uint32_t i = 0; i < count && 8 + (i + 1) * sizeof(entry_t) <= sizeof table; i++) {

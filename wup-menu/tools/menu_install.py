@@ -49,12 +49,15 @@ def main():
     what = a[0] if a else 'menu'
     m = WupMon(os.environ.get('WUP_PORT', '/dev/cu.usbserial-0001'))
     if what == 'menu':
-        menu, img = build_menu()                                # an app image, stored deflated
+        menu, img, blob = build_menu()                           # an app image, stored deflated (+ its bigmem blob)
         crc = zlib.crc32(img) & 0xffffffff
-        print('menu %d KB, stored %d KB, crc %08x' % (len(menu) >> 10, len(img) >> 10, crc))
+        print('menu %d KB, stored %d KB, bigmem %d KB, crc %08x' % (len(menu) >> 10, len(img) >> 10, len(blob) >> 10, crc))
         f = Flasher(m, MENU_HDR, MENU_SLOT_END)
         f.sector(MENU_HDR, b'\xff' * 16)                       # invalidate first: a half-written image never looks valid
         f.region(MENU_IMG, img, 'image')
+        if blob:
+            at = MENU_IMG + ((len(img) + 0xfff) & ~0xfff)
+            f.region(at, blob, 'bigmem')
         f.sector(MENU_HDR, menu_header(menu, img))
         print('menu installed at flash 0x%x (header 0x%x), verified' % (MENU_IMG, MENU_HDR))
     elif what == 'loader':
@@ -64,7 +67,7 @@ def main():
         # 3. the menu's image; 4. the menu's header.
         if '--yes-boot-area' not in a: sys.exit('this writes the loader (boot critical): pass --yes-boot-area')
         from mkflash import build_loader, LOADER_FLASH
-        menu, img = build_menu(); loader, _ = build_loader()
+        menu, img, blob = build_menu(); loader, _ = build_loader()
         loader = loader.ljust(0x2000, b'\xff')
         crc = zlib.crc32(img) & 0xffffffff
         print('menu %d KB stored, loader %d bytes' % (len(img) >> 10, len(loader.rstrip(b'\xff'))))
@@ -74,6 +77,7 @@ def main():
         if m.flash(LOADER_FLASH, 0x2000, progress=False) != loader: sys.exit('LOADER READ-BACK DIFFERS: the pad boots stock; install over UART')
         print('2. loader written and verified')
         f.region(MENU_IMG, img, '3. menu image')
+        if blob: f.region(MENU_IMG + ((len(img) + 0xfff) & ~0xfff), blob, '3b. bigmem')
         f.sector(MENU_HDR, menu_header(menu, img)); print('4. menu header written: done. Power the pad off and on, holding A.')
     else: sys.exit(__doc__)
 

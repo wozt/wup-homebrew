@@ -68,11 +68,11 @@ def main():
                             + [('apps/%s/%s' % (wid, name), made(os.path.join(d, sub)) if sub.endswith('.py') else built(os.path.join(d, sub)), zipfile.ZIP_STORED) for sub, name in (more[0] if more else [])], icon, c.get('url', HOME)))
         print('  %-18s %s' % (wid, c.get('version')))
     from mkflash import build_menu, menu_header        # the Homebrew Menu itself (stored: it is deflated already)
-    menu, stored = build_menu()
+    menu, stored, blob = build_menu()                 # + the bigmem blob: menu_slot writes it after the image
     version = re.search(r'MENU_VERSION="([^"]+)"', open(os.path.join(ROOT, 'menu', 'app.cfg')).read()).group(1)
     for w in os.environ.get('WUP_DEFINES', '').split():
         if w.startswith('MENU_VERSION='): version = w.split('=', 1)[1].strip('"')
-    slot = menu_header(menu, stored).ljust(0x1000, b'\xff') + stored
+    slot = menu_header(menu, stored).ljust(0x1000, b'\xff') + stored + blob
     packages.append(pkg(out, 'homebrew_menu', 'Homebrew Menu', 'wup-homebrew', version, 'system', 'The Homebrew Menu',
                         'GPL-3.0-or-later', [('homebrew_menu.bin', slot, zipfile.ZIP_STORED)], None, HOME))
     print('  %-18s %s' % ('homebrew_menu', version))

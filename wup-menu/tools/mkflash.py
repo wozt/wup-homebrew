@@ -76,12 +76,20 @@ MENU_DIR = os.environ.get('MENU_APP') or paths.MENU     # (MENU_APP: another app
 
 
 def build_menu():
-    """the menu: an app like any other (tools/wupbuild.py), stored deflated in its slot -> (image, stored bytes)"""
+    """the menu: an app like any other (tools/wupbuild.py), stored deflated in its slot -> (image, stored bytes,
+    bigmem blob). The blob ({"WUPB", stored, raw, crc} + the deflated code for WUP_BIGMEM) goes right after the stored
+    image on a 4 KB boundary: the menu is no .wup, so libwup's big.c finds it in the flash itself (src/big.c)."""
     import wupbuild, wupack
-    menu = wupbuild.build_app(MENU_DIR)[0][0]          # (the image; the menu has no code for WUP_BIGMEM)
+    (code, big), name, author, version, icon, description = wupbuild.build_app(MENU_DIR)
+    menu = code                                             # the image (first segment + second, as one blob)
     stored = wupack.deflate(menu)
-    if MENU_IMG + len(stored) > MENU_SLOT_END: sys.exit('the menu (%d KB stored) does not fit its slot (%d KB)' % (len(stored) >> 10, (MENU_SLOT_END - MENU_IMG) >> 10))
-    return menu, stored
+    blob = b''
+    if big:
+        z = wupack.deflate(big)
+        blob = struct.pack('<4sIII', b'WUPB', len(z), len(big), zlib.crc32(z) & 0xffffffff) + z
+    blob_at = MENU_IMG + ((len(stored) + 0xfff) & ~0xfff)
+    if blob_at + len(blob) > MENU_SLOT_END: sys.exit('the menu (%d KB stored, %d KB bigmem) does not fit its slot (%d KB)' % (len(stored) >> 10, len(blob) >> 10, (MENU_SLOT_END - MENU_IMG) >> 10))
+    return menu, stored, blob
 
 
 def menu_header(menu, stored, stamp=None):
@@ -110,9 +118,10 @@ def build_bundle():
     image (0x3000), then the apps (menu/bundle.c): at the next 4 KB a table {"WAPS", count, then per app: id[32],
     version[16], offset from the bundle's start, size, crc32}, and the .wup files"""
     loader, _ = build_loader()
-    menu, stored = build_menu()
+    menu, stored, blob = build_menu()
     b = bytearray(loader.ljust(0x2000, b'\xff') + menu_header(menu, stored).ljust(0x1000, b'\xff') + stored)
-    b += b'\xff' * (-len(b) % 0x1000)
+    b += b'\xff' * (-len(b) % 0x1000)                       # the bigmem blob on a sector boundary, like in the slot
+    if blob: b += blob + b'\xff' * (-len(blob) % 0x1000)
     apps = build_apps()
     table = struct.pack('<4sI', b'WAPS', len(apps))
     at = len(b) + 0x1000
@@ -143,10 +152,11 @@ def patches(read):
     elif cur != thumb_bl(HOOK_SITE, STUB_ADDR): sys.exit('unexpected boot code at LVC 0x%x' % HOOK_SITE)
     stub = build_stub()
     loader, _ = build_loader()
-    menu, stored = build_menu()
+    menu, stored, blob = build_menu()
     hdr = menu_header(menu, stored)
     menu = stored
-    return [(MENU_IMG, menu), (MENU_HDR, hdr), (LOADER_FLASH, loader), (at, stub.ljust(STUB_MAX, b'\0')),
+    blob_at = MENU_IMG + ((len(menu) + 0xfff) & ~0xfff)     # the bigmem blob, after the image on a sector boundary
+    return [(MENU_IMG, menu), (blob_at, blob), (MENU_HDR, hdr), (LOADER_FLASH, loader), (at, stub.ljust(STUB_MAX, b'\0')),
             (site, thumb_bl(HOOK_SITE, STUB_ADDR))]
 
 

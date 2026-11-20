@@ -81,7 +81,8 @@ def build(srcs, name, out, incs=(), defs=(), thumb=False, net=False, large=None,
         if r.stderr.strip() and not is_lib and not third: print(r.stderr.strip()[-2000:])
         objs.append(o)
     in_app = [o for s, o in zip(lib + srcs, objs) if s in app_text]
-    in_big = ['*%s' % os.path.basename(o) for s, o in zip(lib + srcs, objs) if s in big_text]
+    in_big = ['*%s' % os.path.basename(o) for s, o in zip(lib + srcs, objs)
+              if s in big_text or os.path.splitext(os.path.basename(s))[0] in big_text]   # a module's name works too
     if 'lvgl' in big_text and gui: in_big.append('*liblvgl.a:*')
     if 'bearssl' in big_text and https: in_big.append('*libbearssl.a:*')
     import deps; deps.fetch('tinf'); tinf = os.path.join(deps.DEPS['tinf'][0], 'src')   # tinf: wup_inflate, and big.c's
@@ -206,7 +207,8 @@ def build_app(d):
     app_text = set(sum((glob.glob(os.path.join(d, x)) for x in cfg.get('text_in_app', '').split()), []))
     libs_big = {'lvgl', 'bearssl'} & set(cfg.get('text_in_big', '').split())       # (whole libraries)
     big_text = set(sum((glob.glob(os.path.join(d, x)) for x in cfg.get('text_in_big', '').split() if x not in libs_big), []))
-    big_text = {os.path.normpath(x) for x in big_text} | libs_big
+    big_text = {os.path.normpath(x) for x in big_text} | libs_big | {x for x in cfg.get('text_in_big', '').split()
+                if x not in libs_big and not any(c in x for c in '/*?[')}   # a plain name: a libwup module too
     thumb_srcs = {os.path.normpath(x) for x in thumb_srcs}; app_text = {os.path.normpath(x) for x in app_text}
     code, big = build(srcs, name, None, [os.path.join(d, x) for x in cfg.get('include', '').split()], cfg.get('defines', '').split(),
                  cfg.get('thumb', 'no') == 'yes', {'yes': True, 'raw': 'raw'}.get(cfg.get('net', 'no'), False), None if lg == 'auto' else lg == 'yes', thumb_srcs,
