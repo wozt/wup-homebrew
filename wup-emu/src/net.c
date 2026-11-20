@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/time.h>
 
 void wifi_net_inject(const uint8_t *eth, int len);
 const uint8_t *wifi_pad_mac(void);
@@ -37,8 +38,23 @@ static PadSock socks[32]; static int nsocks;
 static struct in_addr host_addr;
 static bool inited;
 
+#define TCP_MAX 8
+typedef struct {
+    uint16_t pad_port, dport;
+    int fd;                 /* host socket, nonblocking */
+    int state;              /* 0 connecting, 1 established, 2 closing */
+    uint32_t iss;           /* our initial send seq */
+    uint32_t next;          /* next seq we send */
+    uint32_t exp;           /* next seq we expect from the pad */
+    uint32_t last_ack;      /* last pure ACK we sent (for pad retransmits) */
+    int idle;               /* net_poll rounds since last activity */
+} TcpConn;
+static TcpConn tconns[TCP_MAX];
+static uint32_t tcp_iss_ctr = 0x5f3a0000;
+
 static void net_init(void) {
     inited = true;
+    for (int i = 0; i < TCP_MAX; i++) tconns[i].fd = -1;
     const char *h = getenv("NET_HOST");
     inet_aton(h ? h : "127.0.0.1", &host_addr);
 }
@@ -117,6 +133,141 @@ static void dhcp(const uint8_t *b, int n) {
     send_udp(67, 68, r, o, bcast_ip, bcast);
 }
 
+/* ---- TCP proxy: the pad is the client, we are the "console" (192.168.1.10).
+   Each pad connection is terminated here (SYN-ACK spoofed) and bridged to a real
+   TCP socket on the host (NET_HOST:dport, default 127.0.0.1), so pad lwIP talks
+   to e.g. the netfs server running on the PC. LAN test path only. */
+static uint16_t tcp_checksum(const uint8_t *src, const uint8_t *dst, const uint8_t *tcp, int len) {
+    uint32_t s = 0;
+    for (int i = 0; i < 4; i += 2) s += (src[i] << 8) | src[i + 1];
+    for (int i = 0; i < 4; i += 2) s += (dst[i] << 8) | dst[i + 1];
+    s += 6 + len;                                    /* proto TCP + tcp length */
+    for (int i = 0; i + 1 < len; i += 2) s += (tcp[i] << 8) | tcp[i + 1];
+    if (len & 1) s += tcp[len - 1] << 8;
+    while (s >> 16) s = (s & 0xffff) + (s >> 16);
+    uint16_t r = ~s;
+    return r ? r : 0xffff;
+}
+
+/* send one TCP segment console -> pad. flags: TH_*. data may be NULL. */
+static void send_tcp(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack,
+                     uint8_t flags, const uint8_t *data, int dlen) {
+    static uint8_t f[1600];
+    int thl = 20, tot = 20 + thl + dlen;
+    if (tot > 1500) return;
+    static uint16_t ipid;
+    memcpy(f, pad_mac, 6); memcpy(f + 6, wifi_bssid, 6); f[12] = 0x08; f[13] = 0x00;
+    uint8_t *ip = f + 14;
+    memset(ip, 0, 20);
+    ip[0] = 0x45; ip[2] = tot >> 8; ip[3] = tot; ip[4] = ipid >> 8; ip[5] = ipid; ipid++;
+    ip[8] = 64; ip[9] = 6; memcpy(ip + 12, CON_IP, 4); memcpy(ip + 16, PAD_IP, 4);
+    uint16_t c = csum(ip, 20, 0); ip[10] = c >> 8; ip[11] = c;
+    uint8_t *t = ip + 20;
+    memset(t, 0, thl);
+    t[0] = sport >> 8; t[1] = sport; t[2] = dport >> 8; t[3] = dport;
+    t[4] = seq >> 24; t[5] = seq >> 16; t[6] = seq >> 8; t[7] = seq;
+    t[8] = ack >> 24; t[9] = ack >> 16; t[10] = ack >> 8; t[11] = ack;
+    t[12] = 0x50; t[13] = flags; t[14] = 0xff; t[15] = 0xff;   /* data offset 5, win 65535 */
+    if (dlen) memcpy(t + thl, data, dlen);
+    uint16_t tc = tcp_checksum(CON_IP, PAD_IP, t, thl + dlen);
+    t[16] = tc >> 8; t[17] = tc;
+    wifi_net_inject(f, 14 + tot);
+}
+
+static TcpConn *tcp_find(uint16_t pad_port, uint16_t dport) {
+    for (int i = 0; i < TCP_MAX; i++)
+        if (tconns[i].fd >= 0 && tconns[i].pad_port == pad_port && tconns[i].dport == dport) return &tconns[i];
+    return NULL;
+}
+static TcpConn *tcp_alloc(void) {
+    for (int i = 0; i < TCP_MAX; i++) if (tconns[i].fd < 0) return &tconns[i];
+    return NULL;
+}
+static void tcp_close(TcpConn *c) {
+    if (c->fd >= 0) close(c->fd);
+    c->fd = -1;
+}
+static void tcp_rst(uint16_t pad_port, uint16_t dport, uint32_t seq, uint32_t ack) {
+    send_tcp(dport, pad_port, seq, ack, 0x04, NULL, 0);       /* RST|ACK */
+    NLOG("[net] tcp rst pad %u -> %u\n", pad_port, dport);
+}
+
+/* one TCP segment pad -> console */
+static void tcp_from_pad(const uint8_t *t, int avail, uint16_t dport) {
+    if (avail < 20) return;
+    uint16_t sport = (t[0] << 8) | t[1];
+    uint32_t seq = (t[4] << 24) | (t[5] << 16) | (t[6] << 8) | t[7];
+    uint8_t thl = (t[12] >> 4) * 4, flags = t[13];
+    if (thl < 20 || thl > avail) return;
+    int dlen = avail - thl;
+    const uint8_t *data = t + thl;
+
+    if (flags & 0x04) {                                       /* RST */
+        TcpConn *c = tcp_find(sport, dport);
+        if (c) { NLOG("[net] tcp rst from pad %u\n", sport); tcp_close(c); }
+        return;
+    }
+    if (flags & 0x02 && !(flags & 0x10)) {                    /* SYN */
+        TcpConn *old = tcp_find(sport, dport);
+        if (old) {                                            /* retransmitted SYN: resend SYN-ACK */
+            send_tcp(dport, sport, old->next - 1, old->exp, 0x12, NULL, 0);
+            return;
+        }
+        TcpConn *c = tcp_alloc();
+        if (!c) { tcp_rst(sport, dport, seq + 1, 0); return; }
+        memset(c, 0, sizeof *c); c->fd = -1;
+        c->pad_port = sport; c->dport = dport;
+        c->iss = tcp_iss_ctr = tcp_iss_ctr * 1103515245u + 12345u;
+        c->next = c->iss + 1;
+        c->exp = seq + 1;
+        c->idle = 0;
+        int fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0) { tcp_rst(sport, dport, seq + 1, 0); return; }
+        fcntl(fd, F_SETFL, O_NONBLOCK);
+        struct sockaddr_in to = { .sin_family = AF_INET, .sin_port = htons(dport), .sin_addr = host_addr };
+        connect(fd, (struct sockaddr *)&to, sizeof to);       /* in progress; EWOULDBLOCK expected */
+        c->fd = fd; c->state = 0;
+        send_tcp(dport, sport, c->iss, c->exp, 0x12, NULL, 0); /* SYN-ACK */
+        NLOG("[net] tcp syn pad %u -> console %u\n", sport, dport);
+        return;
+    }
+    TcpConn *c = tcp_find(sport, dport);
+    if (!c) return;                                           /* stray segment: drop */
+    c->idle = 0;
+    if (c->state == 0) return;                                /* host connect still in progress: pad will retransmit */
+    if (!(flags & 0x10)) return;                              /* no ACK yet: ignore */
+
+    /* data / FIN: only accept in-order bytes */
+    if (dlen || (flags & 0x01)) {
+        uint32_t end = seq + dlen + ((flags & 0x01) ? 1 : 0);
+        if (seq == c->exp) {
+            if (dlen) {
+                ssize_t w = send(c->fd, data, dlen, MSG_NOSIGNAL);
+                if (w <= 0) {
+                    if (w < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return;  /* don't ACK what we didn't take */
+                    tcp_close(c); return;
+                }
+                c->exp += w;                                   /* pad retransmits any remainder */
+            }
+            if (flags & 0x01) { c->exp++; shutdown(c->fd, SHUT_WR); }
+            send_tcp(dport, sport, c->next, c->exp, 0x10, NULL, 0);   /* ACK */
+            c->last_ack = c->exp;
+        } else if (end <= c->exp) {
+            send_tcp(dport, sport, c->next, c->exp, 0x10, NULL, 0);   /* pure dup: re-ACK */
+        } else if (seq < c->exp) {
+            int skip = c->exp - seq;                            /* partial overlap */
+            if (dlen > skip) {
+                ssize_t w = send(c->fd, data + skip, dlen - skip, MSG_NOSIGNAL);
+                if (w > 0) c->exp += w;
+            }
+            if (flags & 0x01) { c->exp++; shutdown(c->fd, SHUT_WR); }
+            send_tcp(dport, sport, c->next, c->exp, 0x10, NULL, 0);
+        } else {
+            send_tcp(dport, sport, c->next, c->exp, 0x10, NULL, 0);   /* gap: dup ACK, wait retransmit */
+        }
+    }
+}
+
 void net_from_pad(const uint8_t *e, int n) {
     if (!inited) net_init();
     if (n < 14) return;
@@ -139,6 +290,11 @@ void net_from_pad(const uint8_t *e, int n) {
     if (type != 0x0800 || n < 14 + 28) { NLOG("[net] pad frame type %04x len %d\n", type, n); return; }
     const uint8_t *ip = e + 14;
     int ihl = (ip[0] & 15) * 4, tot = (ip[2] << 8) | ip[3];
+    if (ip[9] == 6) {                                          /* TCP */
+        const uint8_t *t = ip + ihl;
+        if (tot - ihl >= 20) tcp_from_pad(t, tot - ihl, (t[2] << 8) | t[3]);
+        return;
+    }
     if (ip[9] != 17) { NLOG("[net] pad IP proto %d\n", ip[9]); return; }
     const uint8_t *u = ip + ihl;
     uint16_t sport = (u[0] << 8) | u[1], dport = (u[2] << 8) | u[3];
@@ -166,6 +322,47 @@ void net_poll(void) {
             if (r < 0) break;
             if (!socks[i].rx++) NLOG("[net] console %u -> pad %u (first, %d bytes)\n", ntohs(from.sin_port), socks[i].port, r);
             send_udp(ntohs(from.sin_port), socks[i].port, buf, r, PAD_IP, pad_mac[0] | pad_mac[1] | pad_mac[2] ? pad_mac : wifi_pad_mac());
+        }
+    }
+    /* TCP: finish connects, pump host -> pad, reap idle connections */
+    static uint8_t tbuf[1460];
+    for (int i = 0; i < TCP_MAX; i++) {
+        TcpConn *c = &tconns[i];
+        if (c->fd < 0) continue;
+        if (++c->idle > 4000) {                                /* ~10 s of net_poll rounds */
+            NLOG("[net] tcp idle timeout pad %u -> %u\n", c->pad_port, c->dport);
+            tcp_close(c); continue;
+        }
+        if (c->state == 0) {                                   /* nonblocking connect in progress */
+            fd_set wf; FD_ZERO(&wf); FD_SET(c->fd, &wf);
+            struct timeval tv = { 0, 0 };
+            if (select(c->fd + 1, NULL, &wf, NULL, &tv) <= 0) continue;
+            int err = 0; socklen_t el = sizeof err;
+            getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &el);
+            if (err) {
+                NLOG("[net] tcp connect pad %u -> %u failed: %s\n", c->pad_port, c->dport, strerror(err));
+                send_tcp(c->dport, c->pad_port, c->next, c->exp, 0x14, NULL, 0);   /* RST|ACK */
+                tcp_close(c); continue;
+            }
+            c->state = 1;
+            NLOG("[net] tcp established pad %u -> console %u\n", c->pad_port, c->dport);
+            continue;
+        }
+        if (c->state == 2) continue;                           /* closing: FIN already sent to pad */
+        for (int k = 0; k < 32; k++) {
+            int r = recv(c->fd, tbuf, sizeof tbuf, 0);
+            if (r == 0) {                                      /* host closed: FIN to pad */
+                send_tcp(c->dport, c->pad_port, c->next, c->exp, 0x11, NULL, 0);   /* FIN|ACK */
+                c->next++; c->state = 2;
+                NLOG("[net] tcp fin console %u -> pad %u\n", c->dport, c->pad_port);
+                break;
+            }
+            if (r < 0) {
+                if (errno != EAGAIN && errno != EWOULDBLOCK) { tcp_close(c); }
+                break;
+            }
+            send_tcp(c->dport, c->pad_port, c->next, c->exp, 0x18, tbuf, r);        /* PSH|ACK */
+            c->next += r;
         }
     }
 }

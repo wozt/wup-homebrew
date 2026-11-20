@@ -100,6 +100,7 @@ static void sf_write_byte(uint8_t b) {
             for (int i = 1; i <= ab; i++) sf.addr = (sf.addr << 8) | sf.cmd[i];
             if (ab == 3) sf.addr |= (uint32_t)sf.ear << 24;
             sf.reading = true;
+            if (getenv("FLASH_LOG")) fprintf(stderr, "[flash] cmd %02x addr %08x (pc %08x)\n", c, sf.addr, cpu.cur_pc);
         }
         break;
     case 0x0b: case 0x0c:
@@ -108,6 +109,7 @@ static void sf_write_byte(uint8_t b) {
             for (int i = 1; i <= ab; i++) sf.addr = (sf.addr << 8) | sf.cmd[i];
             if (ab == 3) sf.addr |= (uint32_t)sf.ear << 24;
             sf.reading = true;
+            if (getenv("FLASH_LOG")) fprintf(stderr, "[flash] cmd %02x addr %08x (pc %08x)\n", c, sf.addr, cpu.cur_pc);
         }
         break;
     case 0x20: case 0x21: case 0xd8: case 0xdc: case 0x52:
