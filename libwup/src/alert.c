@@ -67,10 +67,11 @@ void wup_alert(const char *title, const char *message, const char *ok, const cha
     anim(dim, set_opa, 0, 96, 180, NULL);              /* (a little darker: 38 %) */
     anim(card, set_card, 0, 255, 220, NULL);
 }
-static void gone(lv_anim_t *a) { (void)a; if (dim) { lv_obj_delete_async(dim); dim = card = 0; } }
+static void gone(lv_anim_t *a) { (void)a; if (dim) { lv_obj_delete_async(dim); dim = card = 0; lv_indev_set_group(wup_lvgl_keys(), behind); behind = 0; } }
 static void leave(void) {
     closing = 1;
-    lv_indev_set_group(wup_lvgl_keys(), behind);
+    /* the keys stay on nowhere until the card is gone: a button still held as the alert closes
+       must not click what is behind (its choice already ran) */
     lv_anim_delete(dim, set_opa); lv_anim_delete(card, set_card);
     anim(card, set_card, lv_obj_get_style_opa(card, 0), 0, 130, NULL);
     anim(dim, set_opa, lv_obj_get_style_bg_opa(dim, 0), 0, 150, gone);

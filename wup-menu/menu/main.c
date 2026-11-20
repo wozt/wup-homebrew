@@ -156,10 +156,8 @@ static void autojoin_step(void) {
 }
 
 /* ---- starting and installing apps */
-const char *menu_start(const char *path) {
+static void handoff_fill(void) {                     /* what the loader reads as the menu ends (menu_start's tail) */
     volatile wup_handoff_t *pb = WUP_HANDOFF;
-    ns_abort();                                       /* a /net test or browse in progress ends with the menu */
-    if (wup_exec(path, 0)) return "It may be damaged or made for another version";
     pb->flags = (radio_ready ? WUP_HO_RADIO_READY : 0) | (M.ip[0] ? WUP_HO_WIFI_JOINED : 0);
     pb->menu_sel = (uint32_t)ui_selected();
     pb->light = (uint8_t)(M.cfg.brightness * 10 + 1);
@@ -174,6 +172,11 @@ const char *menu_start(const char *path) {
         pb->flags |= WUP_HO_NET_INFO;
     }
     leaving = 1;
+}
+const char *menu_start(const char *path) {
+    ns_abort();                                       /* a /net test or browse in progress ends with the menu */
+    if (wup_exec(path, 0)) return "It may be damaged or made for another version";
+    handoff_fill();
     return 0;
 }
 /* an app's folder name from its title, as the .wup name the tools give it: "Game Boy" -> "game_boy" */
@@ -193,6 +196,23 @@ const char *menu_install_received(int run) {
     if (lfs_rename(&fs_lfs, WUPLINK_STREAM_PATH, path)) { fs_remove(WUPLINK_STREAM_PATH); return "The app could not be stored on the GamePad"; }
     apps_scan();
     return run ? menu_start(path) : 0;
+}
+
+/* an app streamed from the network share: its code is already at WUP_HANDOFF_STAGE (netshare's fetch);
+   it runs without touching /apps — its saves live in /save/net/<slug>/ (app_dir comes from app_path) */
+const char *menu_start_netapp(const char *remote, uint32_t stage_size, uint32_t stage_raw) {
+    char base[64], s[32], dir[96], path[128];
+    const char *b = strrchr(remote, '/'); b = b ? b + 1 : remote;
+    snprintf(base, sizeof base, "%s", b);
+    char *dot = strrchr(base, '.'); if (dot) *dot = 0;
+    slug(s, base);
+    snprintf(dir, sizeof dir, "/save/net/%s", s);
+    lfs_mkdir(&fs_lfs, "/save/net"); lfs_mkdir(&fs_lfs, dir);
+    snprintf(path, sizeof path, "%s/%s.wup", dir, s);
+    ns_abort();
+    if (wup_exec_staged(path, stage_size, stage_raw)) return "The app could not be staged";
+    handoff_fill();
+    return 0;
 }
 
 /* Reset: the apps and their data, the clock and file sharing settings (the files) and the menu's settings (Wi-Fi too)

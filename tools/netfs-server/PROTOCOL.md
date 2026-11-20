@@ -1,7 +1,8 @@
 # netfs protocol — version 1
 
 A small framed binary TCP protocol between the Wii U GamePad (libwup's `src/netfs.c`)
-and `netfs_server.py`. Read-only for now; every message is length-framed, little-endian,
+and `netfs_server.py`. Read-only by default; `--read-write` additionally allows
+OPEN-for-write and WRITE (uploads). Every message is length-framed, little-endian,
 versioned, and size-capped. **The traffic is not encrypted**: it is meant for a trusted LAN.
 The optional token is light authentication, not secrecy.
 
@@ -34,9 +35,10 @@ connection idle timeout 30 s.
 | 4 | OPENDIR | path | `cookie u32` |
 | 5 | READDIR | `cookie u32`, `max u32` | entries + `next u32` trailer |
 | 6 | FREEDIR | `cookie u32` | empty |
-| 7 | OPEN | path bytes + `flags u8` (bit0 = write → `EROFS`) | `handle u32`, `type u8`, `size u64` |
+| 7 | OPEN | path bytes + `flags u8` (bit0 = write, bit1 = create/truncate) | `handle u32`, `type u8`, `size u64` |
 | 8 | READ | `handle u32`, `offset u64`, `len u32` | file bytes (short at EOF) |
 | 9 | CLOSE | `handle u32` | empty |
+| 10 | WRITE | `handle u32`, `offset u64`, then data bytes (`--read-write` only, else `EROFS`) | empty |
 
 ### READDIR entry format
 
@@ -54,6 +56,8 @@ The client parses entries until exactly 4 bytes remain.
   client may read anywhere, any order, and reconnect (re-AUTH + re-OPEN) freely.
 - Paths are resolved inside the configured root only: `..`, absolute escapes and
   symlinks pointing outside are refused (`EACCES`/`ENOENT`).
+- WRITE takes an absolute offset like READ (`pwrite`); OPEN with bit0 set needs a
+  server started with `--read-write`, otherwise `EROFS`. bit1 adds `O_CREAT|O_TRUNC`.
 
 ## Client behaviour (libwup)
 

@@ -45,6 +45,7 @@ int main(void);
 /* start another app when this one ends: check the .wup now (0 = fine), then return from main(). arg: a file for it
    to open (its wup_arg()), or NULL. The app after that one is the menu again. */
 int wup_exec(const char *wup_path, const char *arg);
+int wup_exec_staged(const char *wup_path, uint32_t size, uint32_t raw);   /* the image is already at WUP_HANDOFF_STAGE (e.g. streamed from /net) */
 const wup_handoff_t *wup_handoff(void);                     /* the menu's hand-off (app path, argument) */
 /* Where the app lives, like argv[0] on the Switch: "/apps/game_boy/game_boy.wup". Keep the app's data
    in its folder (wup_app_dir: "/apps/game_boy"), so deleting the folder removes everything. */

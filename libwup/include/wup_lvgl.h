@@ -22,6 +22,7 @@
 
 lv_display_t *wup_lvgl_init(void);
 void wup_lvgl_run(int ms);                 /* draw and handle input for about ms milliseconds (the system runs too) */
+int wup_lvgl_hold(int on);                 /* 1: stop writing the framebuffer (it is being used for something else, e.g. a staged app); 0: resume. Partial-buffer mode only */
 lv_indev_t *wup_lvgl_touch(void);
 lv_indev_t *wup_lvgl_keys(void);
 

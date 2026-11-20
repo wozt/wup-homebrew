@@ -10,7 +10,9 @@ static uint32_t tick(void) { uint32_t c = wup_us(); frac += c - last_us; last_us
    into the screen ("direct" mode), the screen showed every step (the background, then the text on it) and flickered
    while a list scrolled. Flushing is the copy, then writing it out of the D-cache. */
 static px_t *fb;
+static int hold;                                     /* wup_lvgl_hold: no presents (the framebuffer is being written by hand) */
 static void flush(lv_display_t *d, const lv_area_t *a, uint8_t *px) {
+    if (hold) { lv_display_flush_ready(d); return; }   /* (fb is the stage: nothing may be written there) */
     int w = a->x2 - a->x1 + 1, h = a->y2 - a->y1 + 1;
     const px_t *s = (const px_t *)px;
     for (int y = 0; y < h; y++) memcpy(fb + (a->y1 + y) * GFX_W + a->x1, s + y * w, (size_t)w * sizeof(px_t));
@@ -23,6 +25,7 @@ static void flush(lv_display_t *d, const lv_area_t *a, uint8_t *px) {
 }
 static void flush_direct(lv_display_t *d, const lv_area_t *a, uint8_t *px) {
     (void)px;
+    if (hold) { lv_display_flush_ready(d); return; }
     gfx_present(a->x1, a->y1, a->x2 - a->x1 + 1, a->y2 - a->y1 + 1);
     lv_display_flush_ready(d);
 }
@@ -90,3 +93,4 @@ void wup_lvgl_run(int ms) {
     uint32_t t0 = tick();
     do { lv_timer_handler(); wup_sleep(2); } while ((int)(tick() - t0) < ms);
 }
+int wup_lvgl_hold(int on) { int was = hold; hold = on; return was; }   /* (partial-buffer mode only: direct mode draws into fb itself) */

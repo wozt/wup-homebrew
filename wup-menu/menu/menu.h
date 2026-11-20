@@ -31,6 +31,7 @@ void menu_wait(int ms);                    /* draw, handle input and menu_poll f
 int menu_radio(void);                      /* the radio patched and up: 0 = ready */
 const char *menu_connect(const wifi_net *n, const char *pass);   /* NULL = connected (the list shows it: a checkmark) */
 const char *menu_start(const char *wup_path);     /* start an app when the menu's loop ends; NULL = it will */
+const char *menu_start_netapp(const char *remote, uint32_t stage_size, uint32_t stage_raw);   /* an app already staged from /net (its saves go to /save/net/<slug>/) */
 /* clock.c */
 typedef struct { const char *id, *name, *tz; } clock_zone_t;     /* tz: a POSIX TZ rule */
 extern const clock_zone_t clock_zones[]; extern const int clock_nzones;

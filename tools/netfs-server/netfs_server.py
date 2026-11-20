@@ -19,7 +19,7 @@ import sys
 import threading
 
 VER = 1
-CMD_AUTH, CMD_PING, CMD_STAT, CMD_OPENDIR, CMD_READDIR, CMD_FREEDIR, CMD_OPEN, CMD_READ, CMD_CLOSE = range(1, 10)
+CMD_AUTH, CMD_PING, CMD_STAT, CMD_OPENDIR, CMD_READDIR, CMD_FREEDIR, CMD_OPEN, CMD_READ, CMD_CLOSE, CMD_WRITE = range(1, 11)
 T_REG, T_DIR = 0, 1
 
 MAX_PATH = 512
@@ -40,10 +40,11 @@ def os_error(code):
 class Conn:
     """One client: framed request -> framed response, all under IO_TIMEOUT."""
 
-    def __init__(self, sock, root, token):
+    def __init__(self, sock, root, token, rw=False):
         self.sock = sock
         self.root = os.path.realpath(root)
         self.token = token.encode() if token else None
+        self.rw = rw
         self.authed = self.token is None
         self.handles = {}       # id -> open file
         self.dirs = {}          # cookie -> os.scandir iterator + dirfd path
@@ -83,6 +84,16 @@ class Conn:
         real = self.resolve(path)
         # O_NOFOLLOW on the last component; the realpath check above covers the rest
         return os.open(real, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_CLOEXEC', 0))
+
+    def open_write(self, path, flags):
+        real = self.resolve(path)
+        # flags bit0 = write, bit1 = create/truncate; only with --read-write
+        if not self.rw:
+            raise os_error(errno.EROFS)
+        mode = os.O_WRONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_CLOEXEC', 0)
+        if flags & 2:
+            mode |= os.O_CREAT | os.O_TRUNC
+        return os.open(real, mode, 0o644)
 
     # ---- commands ----
     def cmd_auth(self, p):
@@ -152,9 +163,10 @@ class Conn:
         if not p:
             raise os_error(errno.EINVAL)
         path, flags = p[:-1], p[-1]
-        if flags & 1:                       # write requested: refused (read-only server, for now)
-            raise os_error(errno.EROFS)
-        fd = self.open_read(path.rstrip(b'\x00').decode('utf-8', 'surrogateescape'))
+        if flags & 1:                       # writable handle (--read-write only)
+            fd = self.open_write(path.rstrip(b'\x00').decode('utf-8', 'surrogateescape'), flags)
+        else:
+            fd = self.open_read(path.rstrip(b'\x00').decode('utf-8', 'surrogateescape'))
         hid = self.next_id
         self.next_id += 1
         self.handles[hid] = fd
@@ -177,6 +189,22 @@ class Conn:
         os.lseek(fd, off, os.SEEK_SET)
         data = os.read(fd, ln)
         return 0, data
+
+    def cmd_write(self, p):
+        if len(p) < 12:
+            raise os_error(errno.EINVAL)
+        hid, off = struct.unpack_from('<IQ', p)         # handle u32, offset u64, then data
+        fd = self.handles.get(hid)
+        if fd is None:
+            raise os_error(errno.EBADF)
+        data = p[12:]
+        if data:
+            if hasattr(os, 'pwrite'):
+                os.pwrite(fd, data, off)
+            else:
+                os.lseek(fd, off, os.SEEK_SET)
+                os.write(fd, data)
+        return 0, b''
 
     def cmd_close(self, p):
         if len(p) >= 4:
@@ -207,6 +235,8 @@ class Conn:
             return self.cmd_read(payload)
         if cmd == CMD_CLOSE:
             return self.cmd_close(payload)
+        if cmd == CMD_WRITE:
+            return self.cmd_write(payload) if self.rw else errno.EROFS
         return errno.ENOSYS
 
     def serve(self):
@@ -255,6 +285,7 @@ def main():
     ap.add_argument('--host', default='127.0.0.1', help='address to listen on (default 127.0.0.1: LAN only, never the Internet)')
     ap.add_argument('--port', type=int, default=8734)
     ap.add_argument('--token', default='', help='shared secret; required when set (light auth, LAN only)')
+    ap.add_argument('--read-write', action='store_true', help='allow OPEN for write + WRITE (uploads); default stays read-only')
     a = ap.parse_args()
     root = os.path.realpath(a.root)
     if not os.path.isdir(root):
@@ -273,7 +304,7 @@ def main():
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             except OSError:
                 pass
-            threading.Thread(target=Conn(sock, root, a.token).serve, daemon=True).start()
+            threading.Thread(target=Conn(sock, root, a.token, a.read_write).serve, daemon=True).start()
     except KeyboardInterrupt:
         pass
 

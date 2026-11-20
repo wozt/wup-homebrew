@@ -309,5 +309,67 @@ def srv_socket_port():
     return 0
 
 
+class NetfsRwTest(unittest.TestCase):
+    """--read-write: OPEN for write + WRITE upload; the read-only server still refuses."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = tempfile.mkdtemp(prefix='netfs-rw-')
+        cls.lsock = socket.socket()
+        cls.lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        cls.lsock.bind(('127.0.0.1', 0))
+        cls.port = cls.lsock.getsockname()[1]
+        cls.lsock.listen(8)
+        threading.Thread(target=cls.accept_loop, daemon=True).start()
+
+    @classmethod
+    def accept_loop(cls):
+        while True:
+            try:
+                sk, _ = cls.lsock.accept()
+            except OSError:
+                return
+            threading.Thread(target=srv.Conn(sk, cls.root, '', True).serve, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.lsock.close()
+        shutil.rmtree(cls.root, ignore_errors=True)
+
+    def client(self):
+        return Client(self.port)
+
+    def test_write_upload_and_readback(self):
+        c = self.client()
+        payload = pattern(100000, 7)                     # ~100 KB, unaligned size
+        d = c.ok(7, path_bytes('/up.bin') + b'\x03')     # write | create/truncate
+        (h, _ty, _sz) = struct.unpack('<IBQ', d)
+        off = 0
+        while off < len(payload):
+            chunk = payload[off:off + 8192]
+            c.ok(10, struct.pack('<IQ', h, off) + chunk)  # WRITE: handle, offset, data
+            off += len(chunk)
+        c.ok(9, struct.pack('<I', h))
+        # the file is really there with the right bytes
+        with open(os.path.join(self.root, 'up.bin'), 'rb') as f:
+            self.assertEqual(f.read(), payload)
+        # and readable through the protocol
+        d = c.ok(7, path_bytes('/up.bin') + b'\x00')
+        (h2, _t, sz) = struct.unpack('<IBQ', d)
+        self.assertEqual(sz, len(payload))
+        st, data = c.cmd(8, struct.pack('<IQI', h2, 99992, 64))
+        self.assertEqual(data, payload[99992:])
+        c.ok(9, struct.pack('<I', h2))
+        c.close()
+
+    def test_write_outside_root_refused(self):
+        c = self.client()
+        st, _ = c.cmd(7, path_bytes('/../escape.bin') + b'\x03')
+        self.assertNotEqual(st, 0)
+        st, _ = c.cmd(10, struct.pack('<IQ', 9999, 0) + b'x')
+        self.assertEqual(st, srv.errno.EBADF)
+        c.close()
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
