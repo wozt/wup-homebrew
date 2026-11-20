@@ -8,6 +8,7 @@
 #include "apps.h"
 #include "wuplink.h"
 #include "wifi/wifi_hw.h"
+#include "netfs.h"
 
 typedef struct {
     config_t cfg;                          /* saved settings (config.h) */
@@ -23,6 +24,8 @@ extern menu_t M;
 void menu_save(void);                      /* the settings to flash */
 void menu_share_save(void);
 void menu_share_password(const char *pw);
+netfs_cfg_t *menu_netfs(void);             /* network storage settings (/config/netfs); edit then menu_netfs_save() */
+void menu_netfs_save(void);
 void menu_poll(void);                      /* the network and the services: called from every waiting loop */
 void menu_wait(int ms);                    /* draw, handle input and menu_poll for ms (not from inside an LVGL event) */
 int menu_radio(void);                      /* the radio patched and up: 0 = ready */

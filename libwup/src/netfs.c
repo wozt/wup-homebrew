@@ -429,7 +429,7 @@ int netfs_seek(void *p, i64 off, int whence) {
     if (!h) return -1;
     i64 base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? (i64)h->pos : (i64)h->size;
     i64 np = base + off;
-    if (np < 0 || (u64)np > h->size) { lerr = EINVAL; return -1; }
+    if (np < 0) { lerr = EINVAL; return -1; }       /* past the end is fine: reads there give EOF */
     h->pos = (u64)np;
     return 0;
 }
