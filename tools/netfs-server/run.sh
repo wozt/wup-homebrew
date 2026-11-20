@@ -5,5 +5,6 @@
 # pass --host 0.0.0.0 and the token the menu is configured with. NOT encrypted: LAN only.
 set -e
 cd "$(dirname "$0")"
-ROOT="${1:-.}"; [ "${1#--}" != "$1" ] && ROOT=.
+ROOT="."
+if [ $# -gt 0 ] && [ "${1#--}" = "$1" ]; then ROOT="$1"; shift; fi
 exec python3 netfs_server.py --root "$ROOT" "$@"

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "menu.h"
+#include "fs.h"
 #include "wup_hw.h"
 #include "wupfmt.h"
 #include "ftpd.h"
@@ -540,9 +541,10 @@ static void netfs_screen(lv_obj_t *scr) {
     lv_obj_t *l = page(scr, "Network Storage", "B Back    A Select");
     netfs_cfg_t *c = menu_netfs();
     sw_row(l, "Network Storage", c->on, on_nfs_on);
-    snprintf(v, sizeof v, "%s:%u", c->ip[0] ? c->ip : "—", c->port ? c->port : NETFS_PORT_DEF);
+    snprintf(v, sizeof v, "%s", c->ip[0] ? c->ip : "—");
     row(l, NULL, "Server", v, on_nfs_ip, NULL);
-    row(l, NULL, "Port", NULL, on_nfs_port, NULL);
+    snprintf(v, sizeof v, "%u", c->port ? c->port : NETFS_PORT_DEF);
+    row(l, NULL, "Port", v, on_nfs_port, NULL);
     row(l, NULL, "Access Token", c->token_len ? "Set" : "None", on_nfs_token, NULL);
     row(l, NULL, "Read Cache", cache_label(c->cache_kb), on_nfs_cache, NULL);
     if (!M.ip[0]) note(l, "Join a Wi-Fi network in Network > Wi-Fi first.");
@@ -562,6 +564,7 @@ static void test_done(void) {
     else { static char t[128]; snprintf(t, sizeof t, "%s", ns_err(r)); wup_alert("Can't Reach the Server", t, "OK", NULL, NULL, 0); }
 }
 /* browsing: br_path is the server-side folder; entries come from netshare.c */
+static int ends_wup(const char *n) { int l = (int)strlen(n); return l > 4 && !strcmp(n + l - 4, ".wup"); }
 static char br_path[320] = "/";
 static void browse_go(const char *path) {
     snprintf(br_path, sizeof br_path, "%s", path);
@@ -598,16 +601,25 @@ static void browse_screen(lv_obj_t *scr) {
     }
     if (strcmp(br_path, "/")) row(l, LV_SYMBOL_LEFT, "..", NULL, on_br_up, NULL);
     int n = 0; const ns_ent_t *es = ns_entries(&n);
-    if (!n) note(l, "Empty folder");
-    for (int i = 0; i < n; i++) {
-        char val[24];
-        if (es[i].is_dir) { val[0] = 0; row(l, LV_SYMBOL_DIRECTORY, es[i].name, NULL, on_br_dir, (void *)(uintptr_t)i); }
-        else {
-            if (es[i].size >= (1u << 30)) snprintf(val, sizeof val, "%.1f GB", es[i].size / 1073741824.0);
-            else if (es[i].size >= (1u << 20)) snprintf(val, sizeof val, "%.1f MB", es[i].size / 1048576.0);
-            else if (es[i].size >= 1024) snprintf(val, sizeof val, "%.1f KB", es[i].size / 1024.0);
-            else snprintf(val, sizeof val, "%llu B", (unsigned long long)es[i].size);
-            row(l, LV_SYMBOL_FILE, es[i].name, val, on_br_file, (void *)(uintptr_t)i);
+    if (!n) { note(l, "Empty folder"); return; }
+    /* homebrew on the share (.wup) apart from the other files */
+    int wups = 0;
+    for (int i = 0; i < n; i++) if (!es[i].is_dir && ends_wup(es[i].name)) wups++;
+    for (int pass = wups ? 0 : 1; pass < 2; pass++) {
+        if (wups && (pass == 0 ? !wups : n == wups)) continue;
+        if (wups) note(l, pass ? "Files and Folders" : "Apps");
+        for (int i = 0; i < n; i++) {
+            int wup = !es[i].is_dir && ends_wup(es[i].name);
+            if ((pass == 0) != wup) continue;
+            char val[24];
+            if (es[i].is_dir) { val[0] = 0; row(l, LV_SYMBOL_DIRECTORY, es[i].name, NULL, on_br_dir, (void *)(uintptr_t)i); }
+            else {
+                if (es[i].size >= (1u << 30)) snprintf(val, sizeof val, "%.1f GB", es[i].size / 1073741824.0);
+                else if (es[i].size >= (1u << 20)) snprintf(val, sizeof val, "%.1f MB", es[i].size / 1048576.0);
+                else if (es[i].size >= 1024) snprintf(val, sizeof val, "%.1f KB", es[i].size / 1024.0);
+                else snprintf(val, sizeof val, "%llu B", (unsigned long long)es[i].size);
+                row(l, wup ? LV_SYMBOL_UPLOAD : LV_SYMBOL_FILE, es[i].name, val, on_br_file, (void *)(uintptr_t)i);
+            }
         }
     }
     if (ns_truncated()) note(l, "First 64 entries shown");
@@ -727,8 +739,37 @@ static void on_app(lv_event_t *e) {
     if (err) { static char t[64]; snprintf(t, sizeof t, "\"%s\" Can't Be Opened", apps_list[home_sel].name); wup_alert(t, err, "OK", NULL, NULL, 0); }
 }
 static void on_focus(lv_event_t *e) { home_sel = (int)(intptr_t)lv_event_get_user_data(e); }
+/* - on an app: what it is and what it takes, with Delete. The system apps can't go. */
+static int app_info_sel;
+static void size_str(char *out, int n, uint64_t b) {
+    if (b >= (1ull << 30)) snprintf(out, (size_t)n, "%.1f GB", (double)b / 1073741824.0);
+    else if (b >= (1ull << 20)) snprintf(out, (size_t)n, "%.1f MB", (double)b / 1048576.0);
+    else if (b >= 1024) snprintf(out, (size_t)n, "%.1f KB", (double)b / 1024.0);
+    else snprintf(out, (size_t)n, "%llu B", (unsigned long long)b);
+}
+static void app_info_done(void) {
+    int i = app_info_sel;
+    if (apps_remove_all(i)) { wup_alert("Couldn't Delete the App", NULL, "OK", NULL, NULL, 0); return; }
+    apps_scan();
+    if (home_sel >= apps_count) home_sel = apps_count - 1;
+    if (home_sel < 0) home_sel = 0;
+    focus_at[0] = home_sel;
+    show();
+    wup_notice("App Deleted", 1);
+}
+static void app_info(void) {
+    if (!apps_count) return;
+    const app_entry_t *a = &apps_list[home_sel];
+    char sz[24], pc[40] = "", t[256];
+    uint64_t bytes = apps_footprint(home_sel), total = (uint64_t)fs_size_kb() * 1024;
+    size_str(sz, sizeof sz, bytes);
+    if (total) snprintf(pc, sizeof pc, " — %.1f%% of the GamePad's storage", (double)bytes * 100.0 / (double)total);
+    snprintf(t, sizeof t, "%s\n%s%s", a->version[0] ? a->version : " ", sz, pc);
+    app_info_sel = home_sel;
+    wup_alert(a->name, t, "Delete", "Cancel", app_info_done, 1);
+}
 static void home_screen(lv_obj_t *scr) {
-    lv_obj_t *l = page(scr, "Homebrew Menu", apps_count ? "Y Netloader    X Settings    A Open" : "Y Netloader    X Settings");
+    lv_obj_t *l = page(scr, "Homebrew Menu", apps_count ? "Y Netloader    X Settings    A Open    - Info" : "Y Netloader    X Settings    - Info");
     for (int i = 0; i < ICONS; i++) { free((void *)icon[i].data); icon[i].data = 0; }
     for (int i = 0; i < apps_count; i++) {
         char t[140];
@@ -825,6 +866,7 @@ void ui_step(void) {
     if (stack[depth] == erasing_screen) pressed &= ~WUP_B;   /* (no way back while it erases) */
     if (stack[0] == setup_screen) pressed = 0;                /* (setting up: nothing to press) */
     if (stack[depth] == kb_screen && kb_obj) kb_buttons(pressed, &pressed);   /* the keyboard: B, Y, X, -, +, L and R type */
+    if (!depth && stack[depth] == home_screen && apps_count && (pressed & WUP_MINUS)) { sound_click(); app_info(); }
     if (pressed & WUP_B) {
         if (stack[depth] == netloader_screen) { wuplink_close(); nl_title = 0; }
         if (stack[depth] == test_screen || stack[depth] == browse_screen) ns_abort();

@@ -9,3 +9,10 @@ CLAUDE.md
 # apps with repositories of their own, checked out next to the platform
 /wup-boy/
 /wup-stream/
+# local test share and build output
+/share-test/
+/build/
+*.wuhb
+# emulator device dumps (pairing data: never commit)
+wup-emu/uic_eeprom.bin
+wup-emu/bootrom.bin
