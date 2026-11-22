@@ -199,7 +199,6 @@ int main(int argc, char **argv) {
     long long max_cycles = -1;
     bool headless = false, realtime = false;
     int scale = 1;
-    bool no_bootrom = getenv("NO_BOOTROM") != NULL;   /* skip bootrom: load stage2 (flash 0) straight to 0x3F0000 */
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--cycles") && i + 1 < argc) max_cycles = atoll(argv[++i]);
         else if (!strcmp(argv[i], "--bootrom") && i + 1 < argc) rom = argv[++i];
@@ -231,18 +230,10 @@ int main(int argc, char **argv) {
         else { fprintf(stderr, "usage: %s [--bootrom f] [--flash f] [--headless --cycles N --screenshot out.bmp --frames out.raw] [--scale N]\n", argv[0]); return 1; }
     }
     bus_init();
+    uint32_t rs;
+    uint8_t *r = load_file(rom, &rs);
+    memcpy(bootrom, r, rs > 0x1000 ? 0x1000 : rs);
     flash = load_file(fl, &flash_size);
-    if (no_bootrom) {
-        /* The boot ROM's only job is to copy the stage-2 loader (SPL, flash 0) to RAM 0x3F0000
-           and jump there. Do that directly: first 0x2000 bytes of flash (the used SPL region). */
-        uint32_t spl = flash_size < 0x2000 ? flash_size : 0x2000;
-        memcpy(ram + 0x3F0000, flash, spl);
-        fprintf(stderr, "[boot] NO_BOOTROM: stage2 %u bytes -> 0x3F0000\n", spl);
-    } else {
-        uint32_t rs;
-        uint8_t *r = load_file(rom, &rs);
-        memcpy(bootrom, r, rs > 0x1000 ? 0x1000 : rs);
-    }
     if (getenv("FLASH_WRITEBACK")) {   /* map the image file shared: flash writes/erases land in it */
         int fd = open(fl, O_RDWR);
         void *m = fd >= 0 ? mmap(NULL, flash_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0) : MAP_FAILED;
@@ -252,7 +243,6 @@ int main(int argc, char **argv) {
     bus_map_rom(true);
     devices_init();
     cpu_reset(&cpu);
-    if (no_bootrom) cpu.r[15] = 0x3F0000;   /* enter stage2 as the boot ROM would */
 
     static uint32_t fb[LCD_W * LCD_H];
 

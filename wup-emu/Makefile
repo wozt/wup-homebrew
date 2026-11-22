@@ -7,7 +7,7 @@ SRC := $(wildcard src/*.c)
 OBJ := $(SRC:src/%.c=build/%.o)
 
 wup-emu: $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(SDL_LIBS) -lm
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(SDL_LIBS)
 
 build/%.o: src/%.c $(wildcard src/*.h) | build
 	$(CC) $(CFLAGS) $(SDL_CFLAGS) -c $< -o $@

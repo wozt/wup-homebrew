@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 #define RAM_BASE 0x00000000u
-#define RAM_SIZE 0x02000000u   /* SRAM: SPL sections reach past 16 MiB; try 32 MiB window */
+#define RAM_SIZE 0x00400000u   /* 4 MiB internal SRAM */
 
 typedef uint32_t (*mmio_read_fn)(void *ctx, uint32_t off, int size);
 typedef void     (*mmio_write_fn)(void *ctx, uint32_t off, uint32_t val, int size);

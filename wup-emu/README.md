@@ -84,11 +84,6 @@ it and run it:
 `emulator/tools/mkpair.py` writes a pairing record into the emulated EEPROM; `emulator/tools/console.py`
 talks to the emulated pad over the emulator's UDP bridge (`NET_HOST`).
 
-The network bridge (`src/net.c`) handles ARP/DHCP for the pad (192.168.1.11, "console" 192.168.1.10 =
-the host), proxies UDP flows to host UDP sockets, and proxies TCP connections the pad opens to
-192.168.1.10:<port> to real TCP sockets on the host (NET_HOST:<port>, default 127.0.0.1) — so pad
-lwIP apps can reach e.g. a netfs server running on the PC.
-
 Debug aids added for this: `FLASH_LOG=1` (every flash read, `FLASH_LOG_STACK=1` adds callers),
 `UIC_LOG_ALL=1` (include input polls), `UIC_LOG_STACK=1`, `I2C_LOG=1`, `RAMFILL=0xa5` (canary-fill RAM
 to find unused memory, with `RAMDUMP=file`).
