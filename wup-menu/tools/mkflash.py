@@ -75,18 +75,38 @@ def build_stub():
 MENU_DIR = os.environ.get('MENU_APP') or paths.MENU     # (MENU_APP: another app folder in the menu's place, for tests)
 
 
+_hszip = None
+def hs_deflate(data):
+    """heatshrink (window 12, lookahead 8 — libwup/src/big.c's decoder): build the host tool once, then stdin->stdout"""
+    global _hszip
+    import deps
+    if _hszip is None:
+        deps.fetch('heatshrink')
+        hs = deps.DEPS['heatshrink'][0]
+        out = paths.local_out('boot')
+        os.makedirs(out, exist_ok=True)
+        exe = os.path.join(out, 'hszip')
+        subprocess.run([os.environ.get('CC', 'cc'), '-O2', '-w', '-I', hs,
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hszip.c'),
+                        os.path.join(hs, 'heatshrink_encoder.c'), '-o', exe], check=True)
+        _hszip = exe
+    return subprocess.run([_hszip], input=data, capture_output=True, check=True).stdout
+
+
 def build_menu():
     """the menu: an app like any other (tools/wupbuild.py), stored deflated in its slot -> (image, stored bytes,
-    bigmem blob). The blob ({"WUPB", stored, raw, crc} + the code for WUP_BIGMEM, stored == raw: uncompressed —
-    flash is cheap and the menu's heap cannot hold the deflated blob) goes right after the stored
-    image on a 4 KB boundary: the menu is no .wup, so libwup's big.c finds it in the flash itself (src/big.c)."""
+    bigmem blob). The blob ({"WUPB", stored, raw, crc} + the code for WUP_BIGMEM) goes right after the stored
+    image on a 4 KB boundary: the menu is no .wup, so libwup's big.c finds it in the flash itself (src/big.c).
+    stored < raw means heatshrink-compressed (big.c inflates it streaming from flash); stored == raw is the
+    old uncompressed layout, still read for blobs written before."""
     import wupbuild, wupack
     (code, big), name, author, version, icon, description = wupbuild.build_app(MENU_DIR)
     menu = code                                             # the image (first segment + second, as one blob)
     stored = wupack.deflate(menu)
     blob = b''
     if big:
-        blob = struct.pack('<4sIII', b'WUPB', len(big), len(big), zlib.crc32(big) & 0xffffffff) + big
+        comp = hs_deflate(big)
+        blob = struct.pack('<4sIII', b'WUPB', len(comp), len(big), zlib.crc32(big) & 0xffffffff) + comp
     blob_at = MENU_IMG + ((len(stored) + 0xfff) & ~0xfff)
     if blob_at + len(blob) > MENU_SLOT_END: sys.exit('the menu (%d KB stored, %d KB bigmem) does not fit its slot (%d KB)' % (len(stored) >> 10, len(blob) >> 10, (MENU_SLOT_END - MENU_IMG) >> 10))
     return menu, stored, blob

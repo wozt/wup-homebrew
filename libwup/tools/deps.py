@@ -14,6 +14,8 @@ DEPS = {   # name: (folder, git URL, tag/branch, license[, folders: a sparse che
     'picolibc': (os.path.join(paths.THIRD, 'picolibc'), 'https://github.com/picolibc/picolibc.git', '1.8.10', 'BSD-3-Clause and others (COPYING.picolibc)'),
     # inflate for the loader: app images are stored deflated (tools/wupack.py)
     'tinf': (os.path.join(paths.THIRD, 'tinf'), 'https://github.com/jibsen/tinf.git', 'v1.2.1', 'Zlib'),
+    # streaming LZ compression for the menu's WUP_BIGMEM blob (src/big.c reads it from flash in chunks)
+    'heatshrink': (os.path.join(paths.THIRD, 'heatshrink'), 'https://github.com/atomicobject/heatshrink.git', 'v0.4.1', 'Boost'),
     # the GUI: the menu and apps (tools/lvgl.py builds it)
     'lvgl': (os.path.join(paths.THIRD, 'lvgl'), 'https://github.com/lvgl/lvgl.git', 'v9.2.2', 'MIT'),
     # HTTPS for apps (src/https.c, app.cfg: https = yes): TLS, HTTP responses; JSON and zip for the apps that need them

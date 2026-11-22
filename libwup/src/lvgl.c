@@ -29,7 +29,7 @@ static void flush_direct(lv_display_t *d, const lv_area_t *a, uint8_t *px) {
     gfx_present(a->x1, a->y1, a->x2 - a->x1 + 1, a->y2 - a->y1 + 1);
     lv_display_flush_ready(d);
 }
-#define BUF_ROWS 80                                    /* a sixth of the screen (133 KB): a whole list row and more at once */
+#define BUF_ROWS 48                                    /* ~80 KB: still more than a list row; smaller = more flush calls, cheaper RAM */
 #ifdef WUP_LVGL_BUF_SPARE
 static px_t buf_spare[GFX_W * BUF_ROWS] __attribute__((section(".wup_lvglbuf"), aligned(64)));   /* WUP_SPARE's free tail: no heap needed */
 #endif

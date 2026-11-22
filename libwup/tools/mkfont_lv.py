@@ -14,10 +14,10 @@ OUT = paths.FONTS
 FACES = [('inter_16', 'Inter-Medium.ttf', 16), ('inter_20', 'Inter-Medium.ttf', 20),
          ('inter_24', 'Inter-SemiBold.ttf', 24), ('inter_32', 'Inter-SemiBold.ttf', 32),
          ('inter_hud', 'Inter-Bold.ttf', 13, 'ABXYLR+-')]            # the letters in the button badges only
-# LV_SYMBOL_*: wifi, battery full..empty, charge, refresh, left, right, up, down, ok, close, settings, download, plus,
+# LV_SYMBOL_*: wifi, battery full..empty, charge, refresh, left, right, up, down, ok, close, settings, download, upload, plus,
 # backspace, new line, keyboard, eye open/close, warning, file, directory, home, power, trash, sun (WUP_SYMBOL_SUN)
 SYMBOLS = '0xF1EB,0xF240-0xF244,0xF0E7,0xF021,0xF053,0xF054,0xF077,0xF078,0xF00C,0xF00D,0xF013,0xF019,0xF067,0xF55A,0xF8A2,' \
-          '0xF11C,0xF06E,0xF070,0xF071,0xF15B,0xF07B,0xF015,0xF011,0xF2ED,0xF185,0xF028,0xF017,0xF120,0xF2DB,0xF0A0'
+          '0xF11C,0xF06E,0xF070,0xF071,0xF15B,0xF07B,0xF015,0xF011,0xF2ED,0xF185,0xF028,0xF017,0xF120,0xF2DB,0xF0A0,0xF093'
 
 
 def main():

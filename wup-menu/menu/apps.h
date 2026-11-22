@@ -7,6 +7,7 @@ extern app_entry_t apps_list[APPS_MAX];
 extern int apps_count, apps_gen;
 int apps_scan(void);
 int apps_load_icon(int i, void *dst);         /* 1 = WUP_ICON x WUP_ICON RGB565 loaded */
+int apps_load_icon_rows(int i, int y0, void *dst, int nrows);   /* n rows of it, from row y0 */
 int apps_remove(int i);
 uint64_t apps_footprint(int i);            /* bytes the app takes on the littlefs: the .wup and its folder's data */
 int apps_remove_all(int i);                /* the .wup and its folder's data; the system apps (App Store, Software Update) stay */

@@ -70,6 +70,11 @@ int apps_load_icon(int i, void *dst) {
     if (!a->icon_off) return 0;
     return fs_read(a->path, a->icon_off, dst, WUP_ICON * WUP_ICON * 2) == WUP_ICON * WUP_ICON * 2;
 }
+int apps_load_icon_rows(int i, int y0, void *dst, int nrows) {   /* nrows of the 64x64 icon, from row y0 */
+    const app_entry_t *a = &apps_list[i];
+    if (!a->icon_off || y0 < 0 || y0 + nrows > WUP_ICON) return 0;
+    return fs_read(a->path, a->icon_off + (uint32_t)y0 * WUP_ICON * 2, dst, (uint32_t)nrows * WUP_ICON * 2) == nrows * WUP_ICON * 2;
+}
 int apps_remove(int i) { return fs_remove(apps_list[i].path); }
 
 /* ---- an app's footprint on the littlefs, and removing it whole ----

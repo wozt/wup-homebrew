@@ -86,7 +86,7 @@
 #define LV_USE_FLEX 1
 #define LV_USE_GRID 1
 
-#define LV_USE_LODEPNG 1                             /* PNG images (box art, icons from files) */
+#define LV_USE_LODEPNG 0                             /* no PNG images: icons are .wup bitmaps, everything else is LV_SYMBOL_* */
 #define LV_USE_FS_POSIX 1                            /* "A:/apps/x/icon.png": files through open/read (sys.c, littlefs) */
 #define LV_FS_POSIX_LETTER 'A'
 #define LV_FS_POSIX_PATH ""

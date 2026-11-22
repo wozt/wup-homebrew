@@ -14,6 +14,7 @@
 #include "armcpu.h"
 #include "fs.h"
 #include "tinf.h"
+#include "heatshrink_decoder.h"
 
 extern uint8_t __big_start[], __big_end[];
 
@@ -51,13 +52,46 @@ static int big_from_flash(uint32_t at, uint32_t want) {
     if (!at) return -1;
     if (fs_flash_read(at, bh, sizeof bh) || get32(bh) != BIGB) { wup_log("[libwup] the menu's WUP_BIGMEM code is missing\n"); return -1; }
     uint32_t stored = get32(bh + 4), raw = get32(bh + 8), crc = get32(bh + 12);
-    if (raw != want || stored != raw) { wup_log("[libwup] the menu's WUP_BIGMEM code is missing\n"); return -1; }
+    if (raw != want) { wup_log("[libwup] the menu's WUP_BIGMEM code is missing\n"); return -1; }
 
-    /* the blob is stored uncompressed (stored == raw): the menu's heap is too small for even the deflated code,
-       and the framebuffer is not ours to borrow — read it straight into WUP_BIGMEM, 4 KB at a time */
-    for (uint32_t off = 0; off < raw; off += 4096) {
-        uint32_t k = raw - off < 4096 ? raw - off : 4096;
-        if (fs_flash_read(at + 16 + off, __big_start + off, k)) { wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -3; }
+    if (stored == raw) {
+        /* the old layout: uncompressed — read it straight into WUP_BIGMEM, 4 KB at a time */
+        for (uint32_t off = 0; off < raw; off += 4096) {
+            uint32_t k = raw - off < 4096 ? raw - off : 4096;
+            if (fs_flash_read(at + 16 + off, __big_start + off, k)) { wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -3; }
+        }
+    } else {
+        /* heatshrink (window 12, lookahead 8): streaming from flash, output straight into WUP_BIGMEM —
+           a few KB of decoder state, no copy of the compressed blob needed */
+        heatshrink_decoder *d = heatshrink_decoder_alloc(2048, 12, 8);
+        if (!d) { wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -2; }
+        static uint8_t in[512];
+        uint32_t ip = 0, produced = 0;
+        for (;;) {
+            while (ip < stored) {
+                uint32_t k = stored - ip < sizeof in ? stored - ip : sizeof in;
+                if (fs_flash_read(at + 16 + ip, in, k)) { heatshrink_decoder_free(d); wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -3; }
+                ip += k;
+                size_t sunk = 0;
+                HSD_sink_res sr = heatshrink_decoder_sink(d, in, k, &sunk);
+                ip -= (uint32_t)(k - sunk);               /* what did not fit stays for the next round */
+                if (sr < 0 || !sunk) break;
+            }
+            if (produced < want) {
+                size_t on = 0;
+                HSD_poll_res pr = heatshrink_decoder_poll(d, __big_start + produced, want - produced, &on);
+                produced += (uint32_t)on;
+                if (pr < 0) { heatshrink_decoder_free(d); wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -4; }
+            }
+            if (ip >= stored) {
+                HSD_finish_res fr = heatshrink_decoder_finish(d);
+                if (fr == HSDR_FINISH_DONE) break;
+                if (fr < 0) { heatshrink_decoder_free(d); wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -4; }
+            }
+            if (produced >= want && ip >= stored) break;   /* (a valid stream ends with finish DONE; guard anyway) */
+        }
+        heatshrink_decoder_free(d);
+        if (produced != want) { wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -4; }
     }
 
     if (crc32(__big_start, raw) != crc) { wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -4; }

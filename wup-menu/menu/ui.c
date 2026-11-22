@@ -139,6 +139,9 @@ static lv_obj_t *row(lv_obj_t *list, const void *icon, const char *text, const c
     if (icon && lv_image_src_get_type(icon) == LV_IMAGE_SRC_SYMBOL) {       /* symbols differ in width: one column, so the texts line up */
         lv_obj_t *im = lv_obj_get_child(b, 0);
         lv_obj_set_width(im, 28); lv_image_set_inner_align(im, LV_IMAGE_ALIGN_CENTER);
+    } else if (icon) {                                                    /* app icons: 32x32 data shown at the old 64x64 footprint */
+        lv_obj_t *im = lv_obj_get_child(b, 0);
+        if (im) { lv_obj_set_size(im, 64, 64); lv_image_set_scale(im, 512); }
     }
     if (value) { lv_obj_t *v = lv_label_create(b); lv_label_set_text(v, value); lv_obj_set_style_text_opa(v, LV_OPA_60, 0); }
     if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, arg); else { lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE); lv_group_remove_obj(b); }
@@ -746,20 +749,38 @@ static void netloader_step(void) {
 #define ICON32_PX (32 * 32)
 typedef struct { uint16_t pal[16]; uint8_t px[ICON32_PX / 2]; } icon32_t;   /* 544 bytes */
 static uint16_t icon_rgb(const uint8_t *p) { uint16_t v; memcpy(&v, p, 2); return v; }
-static void icon32_make(const uint8_t *src64, icon32_t *out) {           /* 64x64 RGB565 -> 32x32 x16c */
-    static uint16_t small[ICON32_PX];                                     /* the 32x32 RGB565 intermediate */
-    static uint16_t hist[256];
-    for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) {           /* box-filter the 2x2 blocks */
+static uint16_t icon_small[ICON32_PX];                                   /* the 32x32 RGB565 intermediate, shared by both makers */
+static void icon32_quantize(icon32_t *out);
+static void icon32_box(const uint8_t *r0, const uint8_t *r1, int y) {    /* one output row from two source rows (128 B each) */
+    for (int x = 0; x < 32; x++) {
         uint32_t r = 0, g = 0, b = 0;
-        for (int dy = 0; dy < 2; dy++) for (int dx = 0; dx < 2; dx++) {
-            uint16_t v = icon_rgb(src64 + (((y * 2 + dy) * 64 + x * 2 + dx) * 2));
-            r += (v >> 11) & 31; g += (v >> 5) & 63; b += v & 31;
+        for (int dx = 0; dx < 2; dx++) {
+            uint16_t v0 = icon_rgb(r0 + (x * 2 + dx) * 2), v1 = icon_rgb(r1 + (x * 2 + dx) * 2);
+            r += (v0 >> 11) & 31; g += (v0 >> 5) & 63; b += v0 & 31;
+            r += (v1 >> 11) & 31; g += (v1 >> 5) & 63; b += v1 & 31;
         }
-        small[y * 32 + x] = (uint16_t)(((r / 4) << 11) | ((g / 4) << 5) | (b / 4));
+        icon_small[y * 32 + x] = (uint16_t)(((r / 4) << 11) | ((g / 4) << 5) | (b / 4));
     }
+}
+static void icon32_make(const uint8_t *src64, icon32_t *out) {           /* 64x64 RGB565 in memory -> 32x32 x16c */
+    for (int y = 0; y < 32; y++) icon32_box(src64 + (y * 2) * WUP_ICON * 2, src64 + (y * 2 + 1) * WUP_ICON * 2, y);
+    icon32_quantize(out);
+}
+static int icon32_make_file(int app_i, icon32_t *out) {                  /* same, reading the .wup icon 8 rows at a time */
+    uint8_t chunk[8 * WUP_ICON * 2];                                      /* 1 KB: four output rows per read, no 8 KB scratch */
+    for (int y0 = 0; y0 < WUP_ICON; y0 += 8) {
+        if (!apps_load_icon_rows(app_i, y0, chunk, 8)) return 0;
+        for (int y = y0 / 2; y < y0 / 2 + 4; y++)
+            icon32_box(chunk + (y * 2 - y0) * WUP_ICON * 2, chunk + (y * 2 + 1 - y0) * WUP_ICON * 2, y);
+    }
+    icon32_quantize(out);
+    return 1;
+}
+static void icon32_quantize(icon32_t *out) {                            /* icon_icon_small[1024] -> palette + 4bpp */
+    static uint16_t hist[256];
     memset(hist, 0, sizeof hist);                                         /* popularity: RGB332 buckets */
     for (int i = 0; i < ICON32_PX; i++) {
-        uint16_t v = small[i];
+        uint16_t v = icon_small[i];
         int r = (v >> 11) & 31, g = (v >> 5) & 63, b = v & 31;
         hist[(r >> 2) << 5 | (g >> 3) << 2 | (b >> 3)]++;
     }
@@ -771,7 +792,7 @@ static void icon32_make(const uint8_t *src64, icon32_t *out) {           /* 64x6
         hist[best] = 0;                                                   /* consumed: never picked twice */
         uint32_t r = 0, g = 0, b = 0, n = 0;
         for (int i = 0; i < ICON32_PX; i++) {                             /* palette entry = the bucket's mean */
-            uint16_t v = small[i];
+            uint16_t v = icon_small[i];
             int q = (((v >> 11) & 31) >> 2) << 5 | (((v >> 5) & 63) >> 3) << 2 | ((v & 31) >> 3);
             if (q == best) { r += (v >> 11) & 31; g += (v >> 5) & 63; b += v & 31; n++; }
         }
@@ -779,7 +800,7 @@ static void icon32_make(const uint8_t *src64, icon32_t *out) {           /* 64x6
     }
     for (int i = 0; i < ICON32_PX / 2; i++) out->px[i] = 0;
     for (int i = 0; i < ICON32_PX; i++) {                                 /* each pixel to its nearest palette entry */
-        uint16_t v = small[i];
+        uint16_t v = icon_small[i];
         int r = (v >> 11) & 31, g = (v >> 5) & 63, b = v & 31, bi = 0; uint32_t bd = 0xffffffff;
         for (int c = 0; c < used; c++) {
             uint16_t p = out->pal[c];
@@ -798,7 +819,6 @@ static void icon32_expand(const icon32_t *in, uint16_t *out32) {         /* -> 3
 }
 #define ICONS 12                                   /* local icons kept in memory: 544 B compact + 2 KB shown each */
 static icon32_t iconc[ICONS]; static uint8_t iconc_ok[ICONS]; static int iconc_gen = -1;
-static uint16_t icon_src[WUP_ICON * WUP_ICON];
 #define HN_MAX 24                                  /* network apps listed at once (the share's root, .wup only) */
 static lv_image_dsc_t icon[ICONS];
 static ns_ent_t hn_apps[HN_MAX];
@@ -914,14 +934,14 @@ static void net_icon_show(lv_obj_t *b, int j) {
     hn_dsc.header.w = hn_dsc.header.h = 32; hn_dsc.header.stride = 32 * 2;
     hn_dsc.data = hn_px; hn_dsc.data_size = ICON32_PX * 2;
     lv_obj_t *im = lv_obj_get_child(b, 0);
-    if (im) { lv_image_set_src(im, &hn_dsc); hn_row = b; }
+    if (im) { lv_image_set_src(im, &hn_dsc); lv_obj_set_size(im, 64, 64); lv_image_set_scale(im, 512); hn_row = b; }
 }
 static void on_focus(lv_event_t *e) {
     int idx = (int)(intptr_t)lv_event_get_user_data(e);
     home_sel = idx;
     lv_obj_t *b = lv_event_get_target(e);
     if (hn_row && hn_row != b) {
-        lv_obj_t *im = lv_obj_get_child(hn_row, 0); if (im) lv_image_set_src(im, LV_SYMBOL_DOWNLOAD);
+        lv_obj_t *im = lv_obj_get_child(hn_row, 0); if (im) { lv_image_set_src(im, LV_SYMBOL_DOWNLOAD); lv_obj_set_size(im, 28, LV_SIZE_CONTENT); lv_image_set_inner_align(im, LV_IMAGE_ALIGN_CENTER); lv_image_set_scale(im, 256); }
         hn_row = 0;
     }
     if (b && idx >= apps_count && idx < apps_count + hn_count && stack[depth] == home_screen && b != hn_row)
@@ -1029,7 +1049,7 @@ static void home_screen(lv_obj_t *scr) {
         const app_entry_t *a = &apps_list[i];
         const void *img = NULL;
         if (i < ICONS && a->icon_off) {
-            if (!iconc_ok[i] && apps_load_icon(i, icon_src)) { icon32_make((const uint8_t *)icon_src, &iconc[i]); iconc_ok[i] = 1; }
+            if (!iconc_ok[i] && icon32_make_file(i, &iconc[i])) iconc_ok[i] = 1;
             if (iconc_ok[i]) {
                 uint16_t *px = malloc(ICON32_PX * 2);
                 if (px) {

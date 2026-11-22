@@ -85,10 +85,14 @@ def build(srcs, name, out, incs=(), defs=(), thumb=False, net=False, large=None,
               if s in big_text or os.path.splitext(os.path.basename(s))[0] in big_text]   # a module's name works too
     if 'lvgl' in big_text and gui: in_big.append('*liblvgl.a:*')
     if 'bearssl' in big_text and https: in_big.append('*libbearssl.a:*')
+    if 'lwip' in big_text: in_big += ['*%s' % os.path.basename(o) for s, o in zip(lib + srcs, objs) if '/lwip/' in s.replace(os.sep, '/')]   # all of lwIP in WUP_BIGMEM
     import deps; deps.fetch('tinf'); tinf = os.path.join(deps.DEPS['tinf'][0], 'src')   # tinf: wup_inflate, and big.c's
-    for s in [os.path.join(paths.SRC, 'inflate.c'), os.path.join(tinf, 'tinflate.c')] + ([os.path.join(paths.SRC, 'big.c')] if in_big else []):
+    hs = ''
+    if in_big: deps.fetch('heatshrink'); hs = deps.DEPS['heatshrink'][0]             # big.c inflates the menu blob with it
+    for s in [os.path.join(paths.SRC, 'inflate.c'), os.path.join(tinf, 'tinflate.c')] + \
+             ([os.path.join(paths.SRC, 'big.c'), os.path.join(hs, 'heatshrink_decoder.c')] if in_big else []):
         o = os.path.join(bdir, os.path.relpath(s, paths.ROOT).replace(os.sep, '_') + '.o')
-        subprocess.run(['clang'] + flags + ['-I', tinf, '-Wno-everything', '-c', s, '-o', o], check=True); objs.append(o)
+        subprocess.run(['clang'] + flags + ['-I', tinf] + (['-I', hs] if hs else []) + ['-Wno-everything', '-c', s, '-o', o], check=True); objs.append(o)
     if in_big and large is None: large = True        # (code in WUP_BIGMEM: the large layout has it)
     tries = [(False, 0)] if large is False else [] if large else [(False, 0)]
     if large is not False: tries += [(True, 0), (True, 1)]       # constants in the app area, else with the code

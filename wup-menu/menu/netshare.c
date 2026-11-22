@@ -299,7 +299,7 @@ static void advance(void) {
             if (nent < NS_MAX_ENTRIES) {
                 ns_ent_t *e = &ents[nent];
                 e->is_dir = msg[pos + 1]; e->size = get64(msg + pos + 2);
-                uint32_t k = nl < 255 ? nl : 255;
+                uint32_t k = nl < 127 ? nl : 127;
                 memcpy(e->name, msg + pos + 10, k); e->name[k] = 0;
                 nent++;
             } else truncated = 1;

@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include "netfs.h"                        /* netfs_cfg_t: the settings apps read from /config/netfs */
 
-typedef struct { char name[256]; uint64_t size; uint8_t is_dir; } ns_ent_t;
+typedef struct { char name[128]; uint64_t size; uint8_t is_dir; } ns_ent_t;   /* 128: longer remote names are truncated (a path that long is rare) */
 
 /* the test of a server: ns_begin_test() starts it; ns_step() (from menu_poll) drives it; ns_result()
    answers once ns_state() is NS_DONE or NS_FAIL (0 ok, else the errno-ish error) */
