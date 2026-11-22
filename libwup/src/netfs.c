@@ -231,6 +231,7 @@ static int do_connect(void) {                        /* 0 or -1 (lerr set); sock
     if (!loop && !wup_net_online()) { lerr = ENETUNREACH; return -1; }
     int s = socket(AF_INET, SOCK_STREAM, 0);
     if (s < 0) { lerr = errno ? errno : ENETDOWN; return -1; }
+    { int one = 1; setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one); }  /* small request/response: no Nagle/delACK stall */
     fcntl(s, F_SETFL, fcntl(s, F_GETFL) | O_NONBLOCK);
     int r = connect(s, (struct sockaddr *)&a, sizeof a);
     if (r < 0 && errno != EINPROGRESS) { lerr = errno; close(s); return -1; }
