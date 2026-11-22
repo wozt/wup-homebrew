@@ -438,6 +438,8 @@ static void on_wifi(lv_event_t *e) { (void)e; nnets = -1; push(wifi_screen); }
 static void on_theme(lv_event_t *e) { (void)e; M.cfg.light = !M.cfg.light; menu_save(); apply_theme(); show(); }
 static void on_sounds(lv_event_t *e) { (void)e; M.cfg.sound_off = !M.cfg.sound_off; menu_save(); show(); }
 static void on_bright(lv_event_t *e) { (void)e; M.cfg.brightness = (uint8_t)(M.cfg.brightness % 10 + 1); hw_backlight(M.cfg.brightness * 10); menu_save(); show(); }
+static int icon_mode(void); static const char *icon_mode_name(int m);
+static void on_icons(lv_event_t *e) { (void)e; M.cfg.icons = (uint8_t)((icon_mode() + 1) % 4 + 1); menu_save(); show(); }   /* icons: mode + 1, 0 = never set */
 static void on_share(lv_event_t *e) { (void)e; M.cfg.share_off = !M.cfg.share_off; menu_save(); show(); }
 static void share_pw_done(void) { menu_share_password(kb_text); memset(kb_text, 0, sizeof kb_text); pop(); wup_notice("Password Set", 1); }
 static void on_share_pw(lv_event_t *e) { (void)e; ask_password("Choose a password for file sharing", share_pw_done); }
@@ -461,6 +463,7 @@ static void settings_screen(lv_obj_t *scr) {
     sw_row_icon(l, LV_SYMBOL_VOLUME_MAX, "Sound Effects", !M.cfg.sound_off, on_sounds);
     snprintf(b, sizeof b, "%d%%", M.cfg.brightness * 10);          /* 10% .. 100% in tens (never dark) */
     row(l, WUP_SYMBOL_SUN, "Brightness", b, on_bright, NULL);
+    row(l, LV_SYMBOL_IMAGE, "Icons", icon_mode_name(icon_mode()), on_icons, NULL);
     row(l, LV_SYMBOL_SETTINGS, "System", "", on_open, system_screen);
 }
 static void network_screen(lv_obj_t *scr) {
@@ -743,14 +746,25 @@ static void netloader_step(void) {
 }
 
 /* ---- home: the installed apps, then the .wup files on the network share ---- */
-/* icons are kept and shown as 32x32 pixels in 16 colours: a 544-byte record (16 RGB565 palette
- * entries + 4bpp indices) is what littlefs caches and what the network probe writes; the row's
- * image is a 2 KB RGB565 expansion of it, four times smaller than the old 64x64 buffers */
+/* icons are lazy-loaded: a row gets its icon's buffer only while it is (nearly) on screen,
+ * so memory stays bounded by the visible rows, not the app count. Settings > Icons picks the
+ * format: the 64x64 RGB565 the .wup already stores, the same requantized to RGB332, or a
+ * 32x32 compact record (RGB332, 1 KB; or a 16-colour palette, 544 B) expanded at 200% */
 #define ICON32_PX (32 * 32)
-typedef struct { uint16_t pal[16]; uint8_t px[ICON32_PX / 2]; } icon32_t;   /* 544 bytes */
+#define ICON_Q_FULL   0                        /* 64x64 RGB565, the .wup icon as it is */
+#define ICON_Q_256_64 1                        /* 64x64, colours reduced to the RGB332 grid */
+#define ICON_Q_256_32 2                        /* 32x32 RGB332, 1 KB a record */
+#define ICON_Q_16_32  3                        /* 32x32 16-colour palette, 544 B a record */
+#define ICON_Q_DEF    ICON_Q_256_32
+typedef struct { uint16_t pal[16]; uint8_t px[ICON32_PX / 2]; } icon32p_t;   /* 544 B */
+typedef struct { uint8_t px[ICON32_PX]; } icon32_t;                        /* 1 KB: RGB332 */
+static int icon_mode(void) { int v = M.cfg.icons; return v >= 1 && v <= 4 ? v - 1 : ICON_Q_DEF; }
+static const char *icon_mode_name(int m) {
+    static const char *n[] = { "64x64", "64x64 256c", "32x32 256c", "32x32 16c" };
+    return n[m & 3];
+}
 static uint16_t icon_rgb(const uint8_t *p) { uint16_t v; memcpy(&v, p, 2); return v; }
-static uint16_t icon_small[ICON32_PX];                                   /* the 32x32 RGB565 intermediate, shared by both makers */
-static void icon32_quantize(icon32_t *out);
+static uint16_t icon_small[ICON32_PX];                                   /* the 32x32 RGB565 intermediate, shared by the makers */
 static void icon32_box(const uint8_t *r0, const uint8_t *r1, int y) {    /* one output row from two source rows (128 B each) */
     for (int x = 0; x < 32; x++) {
         uint32_t r = 0, g = 0, b = 0;
@@ -762,21 +776,34 @@ static void icon32_box(const uint8_t *r0, const uint8_t *r1, int y) {    /* one 
         icon_small[y * 32 + x] = (uint16_t)(((r / 4) << 11) | ((g / 4) << 5) | (b / 4));
     }
 }
-static void icon32_make(const uint8_t *src64, icon32_t *out) {           /* 64x64 RGB565 in memory -> 32x32 x16c */
+static void icon32_small_mem(const uint8_t *src64) {                    /* 64x64 RGB565 in memory -> icon_small */
     for (int y = 0; y < 32; y++) icon32_box(src64 + (y * 2) * WUP_ICON * 2, src64 + (y * 2 + 1) * WUP_ICON * 2, y);
-    icon32_quantize(out);
 }
-static int icon32_make_file(int app_i, icon32_t *out) {                  /* same, reading the .wup icon 8 rows at a time */
+static int icon32_small_file(int app_i) {                               /* same, reading the .wup icon 8 rows at a time */
     uint8_t chunk[8 * WUP_ICON * 2];                                      /* 1 KB: four output rows per read, no 8 KB scratch */
     for (int y0 = 0; y0 < WUP_ICON; y0 += 8) {
         if (!apps_load_icon_rows(app_i, y0, chunk, 8)) return 0;
         for (int y = y0 / 2; y < y0 / 2 + 4; y++)
             icon32_box(chunk + (y * 2 - y0) * WUP_ICON * 2, chunk + (y * 2 + 1 - y0) * WUP_ICON * 2, y);
     }
-    icon32_quantize(out);
     return 1;
 }
-static void icon32_quantize(icon32_t *out) {                            /* icon_icon_small[1024] -> palette + 4bpp */
+static void icon32_pack256(uint8_t *out) {                              /* icon_small[1024] -> RGB332 (R3 G3 B2) */
+    icon32_t *o = (icon32_t *)out;
+    for (int i = 0; i < ICON32_PX; i++) {
+        uint16_t v = icon_small[i];
+        o->px[i] = (uint8_t)((((v >> 11) & 31) >> 2) << 5 | (((v >> 5) & 63) >> 3) << 2 | ((v & 31) >> 3));
+    }
+}
+static void icon32_expand256(const uint8_t *in, uint16_t *out32) {       /* RGB332 -> 32x32 RGB565 (bits widened back) */
+    const icon32_t *o = (const icon32_t *)in;
+    for (int i = 0; i < ICON32_PX; i++) {
+        int v = o->px[i], r = (v >> 5) & 7, g = (v >> 2) & 7, b = v & 3;
+        out32[i] = (uint16_t)((((r << 2) | (r >> 1)) << 11) | (((g << 3) | (g >> 2)) << 5) | ((b << 3) | (b >> 2)));
+    }
+}
+static void icon32_pack16(uint8_t *out) {                                /* icon_small[1024] -> palette + 4bpp */
+    icon32p_t *o = (icon32p_t *)out;
     static uint16_t hist[256];
     memset(hist, 0, sizeof hist);                                         /* popularity: RGB332 buckets */
     for (int i = 0; i < ICON32_PX; i++) {
@@ -796,38 +823,133 @@ static void icon32_quantize(icon32_t *out) {                            /* icon_
             int q = (((v >> 11) & 31) >> 2) << 5 | (((v >> 5) & 63) >> 3) << 2 | ((v & 31) >> 3);
             if (q == best) { r += (v >> 11) & 31; g += (v >> 5) & 63; b += v & 31; n++; }
         }
-        out->pal[used++] = (uint16_t)((r / n << 11) | (g / n << 5) | (b / n));
+        o->pal[used++] = (uint16_t)((r / n << 11) | (g / n << 5) | (b / n));
     }
-    for (int i = 0; i < ICON32_PX / 2; i++) out->px[i] = 0;
+    for (int i = 0; i < ICON32_PX / 2; i++) o->px[i] = 0;
     for (int i = 0; i < ICON32_PX; i++) {                                 /* each pixel to its nearest palette entry */
         uint16_t v = icon_small[i];
         int r = (v >> 11) & 31, g = (v >> 5) & 63, b = v & 31, bi = 0; uint32_t bd = 0xffffffff;
         for (int c = 0; c < used; c++) {
-            uint16_t p = out->pal[c];
+            uint16_t p = o->pal[c];
             int dr = r - ((p >> 11) & 31), dg = g - ((p >> 5) & 63), db = b - (p & 31);
             uint32_t d = dr * dr * 4 + dg * dg * 2 + db * db;
             if (d < bd) { bd = d; bi = c; }
         }
-        if (i & 1) out->px[i >> 1] |= (uint8_t)bi; else out->px[i >> 1] = (uint8_t)(bi << 4);
+        if (i & 1) o->px[i >> 1] |= (uint8_t)bi; else o->px[i >> 1] = (uint8_t)(bi << 4);
     }
 }
-static void icon32_expand(const icon32_t *in, uint16_t *out32) {         /* -> 32x32 RGB565 */
+static void icon32_expand16(const uint8_t *in, uint16_t *out32) {        /* palette record -> 32x32 RGB565 */
+    const icon32p_t *o = (const icon32p_t *)in;
     for (int i = 0; i < ICON32_PX; i++) {
-        int n = (i & 1) ? in->px[i >> 1] & 15 : in->px[i >> 1] >> 4;
-        out32[i] = in->pal[n];
+        int n = (i & 1) ? o->px[i >> 1] & 15 : o->px[i >> 1] >> 4;
+        out32[i] = o->pal[n];
     }
 }
-#define ICONS 12                                   /* local icons kept in memory: 544 B compact + 2 KB shown each */
-static icon32_t iconc[ICONS]; static uint8_t iconc_ok[ICONS]; static int iconc_gen = -1;
+static void icon64_requant(uint8_t *px) {                                /* 64x64 RGB565 -> RGB332 grid -> RGB565, in place */
+    uint16_t *p = (uint16_t *)px;
+    for (int i = 0; i < WUP_ICON * WUP_ICON; i++) {
+        uint16_t v = p[i];
+        int r = ((v >> 11) & 31) >> 2, g = ((v >> 5) & 63) >> 3, b = (v & 31) >> 3;
+        p[i] = (uint16_t)((((r << 2) | (r >> 1)) << 11) | (((g << 3) | (g >> 2)) << 5) | ((b << 3) | (b >> 2)));
+    }
+}
+/* the compact records the 32x32 modes keep, one per app (a static scratch serves the rest) */
+#define ICONS 12
+static uint16_t iconc[ICONS][ICON32_PX / 2];     /* 1 KB a row, 2-byte aligned: RGB332 or palette record by mode */
+static uint8_t iconc_ok[ICONS];
+static int iconc_gen = -1, iconc_mode = -1;
+static uint8_t icon_tmp[ICON32_PX];
+static const uint8_t *icon_compact(int i) {                         /* the app's 32x32 record in the current mode, NULL on failure */
+    int m = icon_mode();
+    if (iconc_gen != apps_gen || iconc_mode != m) { memset(iconc_ok, 0, sizeof iconc_ok); iconc_gen = apps_gen; iconc_mode = m; }
+    uint8_t *rec = i < ICONS ? (uint8_t *)iconc[i] : icon_tmp;
+    if (i < ICONS && iconc_ok[i]) return rec;
+    if (!icon32_small_file(i)) return 0;
+    if (m == ICON_Q_16_32) icon32_pack16(rec); else icon32_pack256(rec);
+    if (i < ICONS) iconc_ok[i] = 1;
+    return rec;
+}
 #define HN_MAX 24                                  /* network apps listed at once (the share's root, .wup only) */
-static lv_image_dsc_t icon[ICONS];
 static ns_ent_t hn_apps[HN_MAX];
-static int hn_count, hn_scan, hn_ever;            /* hn_scan: a browse of "/" is collecting them; hn_ever: the first scan ran */
-static char hn_ver[HN_MAX][16];                   /* each network app's version, from a header probe ("" until it lands) */
-static int hn_pi, hn_pw, hn_wait, hn_changed;     /* the probe queue: hn_pi next to ask, hn_pw in flight, hn_wait result pending */
-static uint8_t *hn_px;                            /* the ONE network icon in memory: it belongs to the highlighted row only */
-static lv_image_dsc_t hn_dsc;
-static lv_obj_t *hn_row;                          /* the row currently showing it (reset on every home rebuild) */
+static int hn_count;
+/* the lazy half: which row shows which app (the local ones first, then the share's), and the
+   buffer its icon occupies while visible — bounded by the rows on screen, not the app count */
+#define ICON_ROWS (APPS_MAX + HN_MAX)
+static lv_obj_t *icon_row[ICON_ROWS];           /* the home row of each app (NULL: none) */
+static uint8_t *icon_px[ICON_ROWS];             /* its icon's display buffer, NULL: not loaded */
+static uint8_t icon_tried[ICON_ROWS];           /* the load was attempted once — no per-frame retries on failure */
+static lv_image_dsc_t icon_dsc[ICON_ROWS];
+static lv_obj_t *icon_list;                     /* the home list the rows live in */
+static uint8_t *hn_src;                         /* a network icon's raw 8 KB, scratch for the 32x32 modes */
+static uint16_t net_c[ICON32_PX / 2];           /* compact scratch while a network icon is converted (2-byte aligned) */
+static void nic_path(const char *name, char *out, int n);
+static int icon_read_src(int i, uint8_t *dst) {  /* the app's raw 64x64 RGB565 into dst (8 KB), 0 on failure */
+    if (i < apps_count) return apps_load_icon(i, dst);
+    char ip[80]; nic_path(hn_apps[i - apps_count].name, ip, sizeof ip);
+    return fs_filesize(ip) == WUP_ICON * WUP_ICON * 2 && fs_read(ip, 0, dst, WUP_ICON * WUP_ICON * 2) == WUP_ICON * WUP_ICON * 2;
+}
+static void icon_unload(int i) {
+    free(icon_px[i]); icon_px[i] = 0; icon_tried[i] = 0;   /* back in view: load again */
+    lv_obj_t *im = icon_row[i] ? lv_obj_get_child(icon_row[i], 0) : 0;
+    if (im) { lv_image_set_src(im, i < apps_count ? LV_SYMBOL_FILE : LV_SYMBOL_DOWNLOAD); lv_image_set_scale(im, 256); }
+}
+static void icon_load(int i) {
+    lv_obj_t *im = icon_row[i] ? lv_obj_get_child(icon_row[i], 0) : 0;
+    if (!im) return;
+    int q = icon_mode(), net = i >= apps_count;
+    lv_image_dsc_t *d = &icon_dsc[i];
+    uint8_t *px = 0;
+    int w, h, scale;
+    if (q <= ICON_Q_256_64) {                    /* 64x64: the raw icon IS the image, 8 KB a row */
+        px = malloc(WUP_ICON * WUP_ICON * 2);
+        if (!px || !icon_read_src(i, px)) { free(px); return; }
+        if (q == ICON_Q_256_64) icon64_requant(px);
+        w = h = WUP_ICON; scale = 256;
+    } else {                                     /* 32x32: a compact record -> a 2 KB RGB565 expansion */
+        const uint8_t *c;
+        if (!net) {
+            c = icon_compact(i);
+            if (!c) return;
+        } else {                                 /* the share's icons keep no compact cache: convert the raw one each time */
+            if (!hn_src) hn_src = malloc(WUP_ICON * WUP_ICON * 2);
+            if (!hn_src || !icon_read_src(i, hn_src)) return;
+            icon32_small_mem(hn_src);
+            if (q == ICON_Q_16_32) icon32_pack16((uint8_t *)net_c); else icon32_pack256((uint8_t *)net_c);
+            c = (const uint8_t *)net_c;
+        }
+        px = malloc(ICON32_PX * 2);
+        if (!px) return;
+        if (q == ICON_Q_16_32) icon32_expand16(c, (uint16_t *)px); else icon32_expand256(c, (uint16_t *)px);
+        w = h = 32; scale = 512;
+    }
+    d->header.magic = LV_IMAGE_HEADER_MAGIC; d->header.cf = LV_COLOR_FORMAT_RGB565;
+    d->header.w = w; d->header.h = h; d->header.stride = w * 2;
+    d->data = px; d->data_size = (uint32_t)w * h * 2;
+    icon_px[i] = px;
+    lv_image_set_src(im, d); lv_image_set_scale(im, scale);
+}
+static void icon_refresh(void) {                 /* load what is on screen, drop what scrolled away */
+    static int tick;
+    if (!icon_list) return;
+    lv_area_t v; lv_obj_get_coords(icon_list, &v);
+    if (v.y2 <= v.y1) return;                                   /* not laid out yet: no coords to trust */
+    tick++;
+    int n = apps_count + hn_count;
+    for (int i = 0; i < n && i < ICON_ROWS; i++) {
+        lv_obj_t *b = icon_row[i];
+        if (!b || (i < apps_count && !apps_list[i].icon_off)) continue;
+        lv_area_t r; lv_obj_get_coords(b, &r);
+        if (r.y2 <= r.y1) continue;                             /* same, for the row itself */
+        int vis = r.y1 < v.y2 + 110 && r.y2 > v.y1 - 110;      /* about one row of margin each side */
+        if (vis && !icon_px[i]) {
+            if (i < apps_count) { if (!icon_tried[i]) { icon_tried[i] = 1; icon_load(i); } }
+            else if ((tick & 7) == (i & 7)) icon_load(i);      /* the share's probe may still be writing its cache */
+        } else if (!vis && icon_px[i]) icon_unload(i);
+    }
+}
+static int hn_scan, hn_ever;                    /* hn_scan: a browse of "/" is collecting them; hn_ever: the first scan ran */
+static char hn_ver[HN_MAX][16];                 /* each network app's version, from a header probe ("" until it lands) */
+static int hn_pi, hn_pw, hn_wait, hn_changed;   /* the probe queue: hn_pi next to ask, hn_pw in flight, hn_wait result pending */
 static void sep(lv_obj_t *list, const char *text) {   /* a section's name between the local apps and the network's */
     lv_obj_t *h = lv_label_create(list);
     lv_label_set_text(h, text);
@@ -865,10 +987,9 @@ static void hn_probe_pump(void) {
         if (ns_state() == NS_DONE && ns_op() == 4 && j >= 0 && j < hn_count) {
             snprintf(hn_ver[j], sizeof hn_ver[j], "%s", ns_probe_version());
             int il = 0; const uint8_t *ip = ns_probe_icon(&il);
-            if (ip && il == WUP_ICON * WUP_ICON * 2) {
-                static icon32_t c; icon32_make(ip, &c);               /* 8 KB on the wire -> 544 B kept */
+            if (ip && il == WUP_ICON * WUP_ICON * 2) {                     /* the raw icon: every quality mode converts from it */
                 char p[80]; nic_path(hn_apps[j].name, p, sizeof p);
-                if (fs_write(p, &c, sizeof c) == (int)sizeof c) hn_changed = 1;
+                if (fs_write(p, ip, il) == il) hn_changed = 1;
             }
             if (hn_ver[j][0]) hn_changed = 1;
             if (hn_changed && !depth) { hn_changed = 0; show(); }   /* each landed probe repaints the row it filled */
@@ -921,31 +1042,8 @@ static void on_app(lv_event_t *e) {
     if (!err) { sound_launch(); for (int t = 0; t < 260; t += 10) wup_lvgl_run(10); }      /* (heard before the menu goes) */
     if (err) { static char t[64]; snprintf(t, sizeof t, "\"%s\" Can't Be Opened", apps_list[home_sel].name); wup_alert(t, err, "OK", NULL, NULL, 0); }
 }
-/* a network app's icon costs one 2 KB buffer, not one per row: the littlefs cache holds the
-   544-byte 32x32x16 form, expanded here and shown only on the highlighted row — the symbol
-   comes back when the highlight moves on. A stale 8 KB cache from before is ignored by size. */
-static void net_icon_show(lv_obj_t *b, int j) {
-    char ip[80]; nic_path(hn_apps[j].name, ip, sizeof ip);
-    if (!hn_px) hn_px = malloc(ICON32_PX * 2);
-    static icon32_t c;
-    if (!hn_px || fs_filesize(ip) != (int)sizeof c || fs_read(ip, 0, &c, sizeof c) != (int)sizeof c) return;
-    icon32_expand(&c, (uint16_t *)hn_px);
-    hn_dsc.header.magic = LV_IMAGE_HEADER_MAGIC; hn_dsc.header.cf = LV_COLOR_FORMAT_RGB565;
-    hn_dsc.header.w = hn_dsc.header.h = 32; hn_dsc.header.stride = 32 * 2;
-    hn_dsc.data = hn_px; hn_dsc.data_size = ICON32_PX * 2;
-    lv_obj_t *im = lv_obj_get_child(b, 0);
-    if (im) { lv_image_set_src(im, &hn_dsc); lv_obj_set_size(im, 64, 64); lv_image_set_scale(im, 512); hn_row = b; }
-}
 static void on_focus(lv_event_t *e) {
-    int idx = (int)(intptr_t)lv_event_get_user_data(e);
-    home_sel = idx;
-    lv_obj_t *b = lv_event_get_target(e);
-    if (hn_row && hn_row != b) {
-        lv_obj_t *im = lv_obj_get_child(hn_row, 0); if (im) { lv_image_set_src(im, LV_SYMBOL_DOWNLOAD); lv_obj_set_size(im, 28, LV_SIZE_CONTENT); lv_image_set_inner_align(im, LV_IMAGE_ALIGN_CENTER); lv_image_set_scale(im, 256); }
-        hn_row = 0;
-    }
-    if (b && idx >= apps_count && idx < apps_count + hn_count && stack[depth] == home_screen && b != hn_row)
-        net_icon_show(b, idx - apps_count);
+    home_sel = (int)(intptr_t)lv_event_get_user_data(e);   /* icons are the lazy loader's job now, on every visible row */
 }
 /* ---- an app's info: - on the home list. What it takes, then Send to Network Storage or Delete ---- */
 static int app_info_sel;
@@ -1039,31 +1137,19 @@ static void upload_screen(lv_obj_t *scr) {
 }
 static void home_screen(lv_obj_t *scr) {
     int total = apps_count + hn_count;
-    lv_obj_t *l = page(scr, "Homebrew Menu", total ? "Y Netloader    X Settings    A Open    - Info" : "Y Netloader    X Settings    - Info");
-    for (int i = 0; i < ICONS; i++) { free((void *)icon[i].data); icon[i].data = 0; }
-    hn_row = 0;                                     /* the shared network icon's row is gone with the old screen */
+    lv_obj_t *l = page(scr, "Homebrew Menu", total ? "Y Netloader    X Settings    A Open    - Manage" : "Y Netloader    X Settings    - Manage");
+    for (int i = 0; i < ICON_ROWS; i++) { free(icon_px[i]); icon_px[i] = 0; icon_row[i] = 0; icon_tried[i] = 0; }
+    icon_list = l;                                  /* icon_refresh() fills the visible rows' icons from here on */
     if (apps_count) sep(l, "Local Flash");
-    if (iconc_gen != apps_gen) { memset(iconc_ok, 0, sizeof iconc_ok); iconc_gen = apps_gen; }
     for (int i = 0; i < apps_count; i++) {
         char t[140];
         const app_entry_t *a = &apps_list[i];
-        const void *img = NULL;
-        if (i < ICONS && a->icon_off) {
-            if (!iconc_ok[i] && icon32_make_file(i, &iconc[i])) iconc_ok[i] = 1;
-            if (iconc_ok[i]) {
-                uint16_t *px = malloc(ICON32_PX * 2);
-                if (px) {
-                    icon32_expand(&iconc[i], px);
-                    icon[i].header.magic = LV_IMAGE_HEADER_MAGIC; icon[i].header.cf = LV_COLOR_FORMAT_RGB565;
-                    icon[i].header.w = icon[i].header.h = 32; icon[i].header.stride = 32 * 2;
-                    icon[i].data = (const uint8_t *)px; icon[i].data_size = ICON32_PX * 2;
-                    img = &icon[i];
-                }
-            }
-        }
         const char *sub = a->description;
         if (sub[0]) snprintf(t, sizeof t, "%s\n%s", a->name, sub); else snprintf(t, sizeof t, "%s", a->name);
-        lv_obj_t *b = row(l, img ? img : LV_SYMBOL_FILE, t, a->version, on_app, (void *)(intptr_t)i);
+        lv_obj_t *b = row(l, LV_SYMBOL_FILE, t, a->version, on_app, (void *)(intptr_t)i);
+        lv_obj_t *im = lv_obj_get_child(b, 0);
+        if (im) lv_obj_set_size(im, 64, 64);                     /* the icon's footprint, glyph centred until it loads */
+        if (a->icon_off) icon_row[i] = b;
         lv_obj_add_event_cb(b, on_focus, LV_EVENT_FOCUSED, (void *)(intptr_t)i);
     }
     if (hn_count) {
@@ -1072,7 +1158,10 @@ static void home_screen(lv_obj_t *scr) {
             char v[24], t[300];
             if (hn_ver[j][0]) snprintf(v, sizeof v, "%s", hn_ver[j]); else size_str(v, sizeof v, hn_apps[j].size);
             snprintf(t, sizeof t, "%s\n%s", hn_apps[j].name, "From the network share");
-            lv_obj_t *b = row(l, LV_SYMBOL_DOWNLOAD, t, v, on_app, (void *)(intptr_t)(apps_count + j));   /* its icon swaps in on focus */
+            lv_obj_t *b = row(l, LV_SYMBOL_DOWNLOAD, t, v, on_app, (void *)(intptr_t)(apps_count + j));
+            lv_obj_t *im = lv_obj_get_child(b, 0);
+            if (im) lv_obj_set_size(im, 64, 64);
+            icon_row[apps_count + j] = b;                        /* its icon lazy-loads like a local one's */
             lv_obj_add_event_cb(b, on_focus, LV_EVENT_FOCUSED, (void *)(uintptr_t)(apps_count + j));
         }
     }
@@ -1207,6 +1296,7 @@ void ui_step(void) {
         }
     }
     hn_probe_pump();                              /* network apps' versions and icons, a few at a time */
+    if (!depth && stack[depth] == home_screen) icon_refresh();   /* the visible rows' icons, as the list scrolls */
     if (!hn_ever && !depth && stack[depth] == home_screen && M.ip[0]) {   /* once Wi-Fi is up: the share's apps */
         netfs_cfg_t *c = menu_netfs();
         if (c->on && c->ip[0]) { hn_ever = 1; net_scan(); }

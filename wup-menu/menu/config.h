@@ -1,7 +1,8 @@
 #pragma once
 /* The menu's saved settings. The Wi-Fi key is the derived WPA2 PMK, never the password. */
 typedef struct {
-    unsigned char light : 1, sound_off : 1, bright10 : 1, : 5;   /* (one byte: the record's size is fixed, the loader checks it) */
+    unsigned char light : 1, sound_off : 1, bright10 : 1, icons : 3, : 2;   /* (one byte: the record's size is fixed, the loader checks it)
+                                                         icons: the home icons' quality + 1 (0: never set: 32x32 256 colours) */
     unsigned char autoboot, wifi_saved, ssid_len;
     char ssid[33]; char country[3];
     unsigned char pmk[32];
