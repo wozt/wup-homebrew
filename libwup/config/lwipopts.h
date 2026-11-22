@@ -11,9 +11,15 @@
 #define LWIP_POSIX_SOCKETS_IO_NAMES 0
 #define LWIP_TCPIP_CORE_LOCKING     1    /* socket calls run the stack themselves under its lock: no hand-over per call */
 #define LWIP_SOCKET_OFFSET          3    /* descriptors 3..: files are 32.. (src/sys.c) */
+#ifdef WUP_NET_NETCONN
+#define MEMP_NUM_NETCONN            WUP_NET_NETCONN
+#else
 #define MEMP_NUM_NETCONN            12
+#endif
 #ifdef WUP_NET_UDP_QUEUE
 #define MEMP_NUM_NETBUF             (WUP_NET_UDP_QUEUE + 16)
+#elif defined(WUP_NET_NETBUF)
+#define MEMP_NUM_NETBUF             WUP_NET_NETBUF
 #else
 #define MEMP_NUM_NETBUF             48
 #endif
@@ -92,10 +98,22 @@
 #define MEMP_NUM_PBUF               32
 #define PBUF_POOL_BUFSIZE           1536
 #define MEMP_NUM_UDP_PCB            12
+#ifdef WUP_NET_TCP_PCB
+#define MEMP_NUM_TCP_PCB            WUP_NET_TCP_PCB
+#else
 #define MEMP_NUM_TCP_PCB            16   /* the menu: FTP's 3 sessions (control + data), Netloader, debug, TIME_WAIT */
+#endif
+#ifdef WUP_NET_TCP_PCB_LISTEN
+#define MEMP_NUM_TCP_PCB_LISTEN     WUP_NET_TCP_PCB_LISTEN
+#else
 #define MEMP_NUM_TCP_PCB_LISTEN     6    /* the menu: FTP, its 3 passive data ports, Netloader, debug */
+#endif
 #define SO_REUSE                    1    /* a data port can be listened on again while its last connection lingers */
+#ifdef WUP_NET_TCP_SEG
+#define MEMP_NUM_TCP_SEG            WUP_NET_TCP_SEG
+#else
 #define MEMP_NUM_TCP_SEG            48
+#endif
 #define MEMP_NUM_SYS_TIMEOUT        (LWIP_NUM_SYS_TIMEOUT_INTERNAL + 3)
 /* SNTP (lwIP's client; the Homebrew Menu's clock, wup-menu: menu/clock.c) */
 #define SNTP_SERVER_DNS             1
