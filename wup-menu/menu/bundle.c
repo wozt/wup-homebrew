@@ -56,7 +56,7 @@ static int each(int (*f)(uint32_t base, const entry_t *e, void (*tick)(void)), v
     uint32_t at = (0x3000 + h[1] + 0xfff) & ~0xfffu;   /* the image ends here: a {"WUPB"} bigmem blob may follow (mkflash) */
     static uint8_t bh[16];
     if (!fs_flash_read(base + at, bh, sizeof bh) && get32(bh) == 0x42505557u) {
-        at = (at + 16 + get32(bh + 4) + 0xfff) & ~0xfffu;   /* past the blob's header and its deflated code */
+        at = (at + 16 + get32(bh + 4) + 0xfff) & ~0xfffu;   /* past the blob's header and its code */
     }
     if (fs_flash_read(base + at, table, sizeof table) || memcmp(table, "WAPS", 4)) return 0;
     uint32_t count, n = 0; memcpy(&count, table + 4, 4);

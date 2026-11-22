@@ -38,5 +38,15 @@ int  ns_begin_fetch(const netfs_cfg_t *cfg, const char *remote);
 uint32_t ns_stage_size(void);
 uint32_t ns_stage_raw(void);
 
+/* probe a .wup without fetching it (op 4): OPEN + READ its header, READ its icon if it has one.
+   On NS_DONE the header's fields are in ns_probe_version()/ns_probe_icon(); a FAIL leaves them empty. */
+int  ns_begin_probe(const netfs_cfg_t *cfg, const char *remote);
+const char *ns_probe_version(void);            /* "" when the header had none (or the probe failed) */
+const uint8_t *ns_probe_icon(int *len);        /* WUP_ICON x WUP_ICON RGB565, NULL without one */
+
+/* delete a file (or an empty directory) on the share — needs a --read-write server, else EROFS.
+   ns_begin_delete() starts it; the result is in ns_result() once ns_state() is NS_DONE/NS_FAIL. */
+int  ns_begin_delete(const netfs_cfg_t *cfg, const char *remote);
+
 void ns_abort(void);                       /* drop any connection in progress */
 void ns_step(void);                        /* once per menu_poll */

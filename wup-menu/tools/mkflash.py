@@ -25,7 +25,7 @@ STUB_ADDR, STUB_MAX = 0xb951c, 0xb95bc - 0xb951c
 LVC_SIZE = 0xbc29c
 LOADER_RAM, LOADER_FLASH, LOADER_MAX = 0x340000, 0x10000, 0x2000   # the loader (in the free gap, libwup/src/fs.c)
 MENU_HDR, MENU_IMG = 0x30000, 0x31000                        # the menu slot (boot/loader.c)
-MENU_SLOT_END = 0x90000                                       # the menu slot: header sector + up to 380 KB of image (libwup/src/fs.c has the rest)
+MENU_SLOT_END = 0xB0000                                       # the menu slot: header sector + image + bigmem blob, up to the settings sectors (0x90000-0xAFFFF is free: docs/architecture.md)
 BANK1, SELECTOR = 0x100000, 0xf000
 FW_DATA_SIZE = 0x2c8ea5                                       # firmware 7677: its sections end here (INDX .. IMG_)
 BUNDLE_OFF = 0x2c9000                                         # the Wii U install's bundle, in the bank (boot/hook.S)
@@ -77,7 +77,8 @@ MENU_DIR = os.environ.get('MENU_APP') or paths.MENU     # (MENU_APP: another app
 
 def build_menu():
     """the menu: an app like any other (tools/wupbuild.py), stored deflated in its slot -> (image, stored bytes,
-    bigmem blob). The blob ({"WUPB", stored, raw, crc} + the deflated code for WUP_BIGMEM) goes right after the stored
+    bigmem blob). The blob ({"WUPB", stored, raw, crc} + the code for WUP_BIGMEM, stored == raw: uncompressed —
+    flash is cheap and the menu's heap cannot hold the deflated blob) goes right after the stored
     image on a 4 KB boundary: the menu is no .wup, so libwup's big.c finds it in the flash itself (src/big.c)."""
     import wupbuild, wupack
     (code, big), name, author, version, icon, description = wupbuild.build_app(MENU_DIR)
@@ -85,8 +86,7 @@ def build_menu():
     stored = wupack.deflate(menu)
     blob = b''
     if big:
-        z = wupack.deflate(big)
-        blob = struct.pack('<4sIII', b'WUPB', len(z), len(big), zlib.crc32(z) & 0xffffffff) + z
+        blob = struct.pack('<4sIII', b'WUPB', len(big), len(big), zlib.crc32(big) & 0xffffffff) + big
     blob_at = MENU_IMG + ((len(stored) + 0xfff) & ~0xfff)
     if blob_at + len(blob) > MENU_SLOT_END: sys.exit('the menu (%d KB stored, %d KB bigmem) does not fit its slot (%d KB)' % (len(stored) >> 10, len(blob) >> 10, (MENU_SLOT_END - MENU_IMG) >> 10))
     return menu, stored, blob

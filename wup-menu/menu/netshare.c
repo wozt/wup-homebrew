@@ -61,6 +61,15 @@ static char f_remote[320];
 static uint32_t f_handle, f_done, f_total, f_next, f_crc, f_raw;
 static uint64_t f_fsize;
 
+/* probe state (op == 4): a .wup's header and icon only — what the home list needs for its rows */
+static char p_remote[320];
+static uint32_t p_handle, p_fsize, p_icon_got;
+static wup_hdr_t p_hdr;
+static uint8_t p_icon[WUP_ICON * WUP_ICON * 2];
+
+/* delete state (op == 5): one DELETE of a "/"-rooted path */
+static char d_remote[320];
+
 static void fail(int e) { result = e; st = NS_FAIL; }
 static uint16_t get16(const uint8_t *p) { return (uint16_t)(p[0] | p[1] << 8); }
 static uint32_t get32(const uint8_t *p) { return (uint32_t)get16(p) | (uint32_t)get16(p + 2) << 16; }
@@ -137,6 +146,29 @@ static void send_f_close(void) {
     uint8_t b[4] = { (uint8_t)f_handle, (uint8_t)(f_handle >> 8), (uint8_t)(f_handle >> 16), (uint8_t)(f_handle >> 24) };
     if (send_frame(CMD_CLOSE, b, 4)) fail(EIO);
 }
+/* probe: the same OPEN/READ/CLOSE dance as fetch, on its own path and handle */
+static void send_p_open(void) {
+    char rq[321];
+    int n = (int)strlen(p_remote); if (n > 300) n = 300;
+    memcpy(rq, p_remote, (size_t)n); rq[n] = 0;
+    if (send_frame(CMD_OPEN, rq, (uint32_t)n + 1)) fail(EIO);
+}
+static void send_p_read(uint64_t off, uint32_t len) {
+    uint8_t rq[16];
+    rq[0] = (uint8_t)p_handle; rq[1] = (uint8_t)(p_handle >> 8); rq[2] = (uint8_t)(p_handle >> 16); rq[3] = (uint8_t)(p_handle >> 24);
+    for (int i = 0; i < 8; i++) rq[4 + i] = (uint8_t)(off >> (8 * i));
+    rq[12] = (uint8_t)len; rq[13] = (uint8_t)(len >> 8); rq[14] = (uint8_t)(len >> 16); rq[15] = (uint8_t)(len >> 24);
+    if (send_frame(CMD_READ, rq, 16)) fail(EIO);
+}
+static void send_p_close(void) {
+    uint8_t b[4] = { (uint8_t)p_handle, (uint8_t)(p_handle >> 8), (uint8_t)(p_handle >> 16), (uint8_t)(p_handle >> 24) };
+    if (send_frame(CMD_CLOSE, b, 4)) fail(EIO);
+}
+#define CMD_DELETE 11
+static void send_d(void) {
+    int n = (int)strlen(d_remote); if (n > 300) n = 300;
+    if (send_frame(CMD_DELETE, d_remote, (uint32_t)n + 1)) fail(EIO);
+}
 
 /* the state machine after each complete reply (msg_st/msg_len/msg).
    phase = which request is outstanding: 0 AUTH, then test 1 PING / 2 STAT, browse 1 OPENDIR / 2 READDIR / 3 FREEDIR */
@@ -147,6 +179,8 @@ static void advance(void) {
         if (op == 0) send_frame(CMD_PING, 0, 0);
         else if (op == 2) send_up_open();
         else if (op == 3) send_f_open();
+        else if (op == 4) send_p_open();
+        else if (op == 5) send_d();
         else send_path(CMD_OPENDIR, bpath[0] ? bpath : "/");
         return;
     }
@@ -193,6 +227,40 @@ static void advance(void) {
         result = 0; st = NS_DONE;                    /* phase 4: CLOSE answered: the stage holds the image */
         return;
     }
+    if (op == 4) {                                   /* probe: OPEN, header READ, icon READ, CLOSE */
+        if (phase == 1) {                            /* OPEN reply: <IBQ handle, type, size */
+            if (msg_len < 13) { fail(EPROTO); return; }
+            p_handle = get32(msg); p_fsize = get64(msg + 5);
+            phase = 2;
+            send_p_read(0, WUP_HDR_V4);
+            return;
+        }
+        if (phase == 2) {                            /* the .wup header */
+            if (msg_len < WUP_HDR_V1) { fail(EPROTO); return; }
+            memset(&p_hdr, 0, sizeof p_hdr);
+            memcpy(&p_hdr, msg, msg_len < sizeof p_hdr ? msg_len : sizeof p_hdr);
+            p_hdr.version[sizeof p_hdr.version - 1] = 0;
+            if (p_hdr.magic != WUP_MAGIC || p_hdr.hdr_size < WUP_HDR_V1 || p_hdr.hdr_size > WUP_HDR_V4) { fail(EINVAL); return; }
+            p_icon_got = 0;
+            if (p_hdr.icon_off && p_hdr.icon_w == WUP_ICON && p_hdr.icon_h == WUP_ICON
+                && (uint64_t)p_hdr.icon_off + (uint64_t)WUP_ICON * WUP_ICON * 2 <= p_fsize) {
+                phase = 3;
+                send_p_read(p_hdr.icon_off, WUP_ICON * WUP_ICON * 2);
+            } else { phase = 4; send_p_close(); }
+            return;
+        }
+        if (phase == 3) {                            /* the icon: a short read at EOF still counts */
+            uint32_t want = WUP_ICON * WUP_ICON * 2;
+            p_icon_got = msg_len < want ? msg_len : want;
+            memcpy(p_icon, msg, p_icon_got);
+            phase = 4;
+            send_p_close();
+            return;
+        }
+        result = 0; st = NS_DONE;                    /* phase 4: CLOSE answered */
+        return;
+    }
+    if (op == 5) { result = 0; st = NS_DONE; return; }   /* delete: its one reply is the answer */
     if (op == 2) {                                   /* upload: OPEN answered, then WRITE pages, then CLOSE */
         if (phase == 1) {
             if (msg_len < 9) { fail(EPROTO); return; }
@@ -324,6 +392,21 @@ int ns_begin_fetch(const netfs_cfg_t *cfg, const char *remote) {
 }
 uint32_t ns_stage_size(void) { return f_total; }
 uint32_t ns_stage_raw(void) { return f_raw; }
+/* probe a .wup's header + icon (op 4); the results stay in p_hdr/p_icon until the next begin */
+int ns_begin_probe(const netfs_cfg_t *cfg, const char *remote) {
+    if (!remote || remote[0] != '/') { result = EINVAL; return NS_FAIL; }
+    snprintf(p_remote, sizeof p_remote, "%s", remote);
+    memset(&p_hdr, 0, sizeof p_hdr); p_icon_got = 0; p_handle = 0;
+    return begin(cfg, 4, 0);
+}
+const char *ns_probe_version(void) { return p_hdr.version[0] ? p_hdr.version : ""; }
+const uint8_t *ns_probe_icon(int *len) { *len = (int)p_icon_got; return p_icon_got ? p_icon : 0; }
+/* delete a "/"-rooted path on the share (the server needs --read-write, else the reply is EROFS) */
+int ns_begin_delete(const netfs_cfg_t *cfg, const char *remote) {
+    if (!remote || remote[0] != '/') { result = EINVAL; return NS_FAIL; }
+    snprintf(d_remote, sizeof d_remote, "%s", remote);
+    return begin(cfg, 5, 0);
+}
 int ns_upload_progress(void) {
     if (op != 2 || st != NS_WORK) return -1;
     return up_size ? (int)(up_done * 100 / up_size) : 100;

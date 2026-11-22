@@ -14,5 +14,11 @@ CLAUDE.md
 /build/
 *.wuhb
 # emulator device dumps (pairing data: never commit)
+uic_eeprom.bin
 wup-emu/uic_eeprom.bin
 wup-emu/bootrom.bin
+# local devkitPro for the Wii U installer build (from the docker image rootfs)
+/devkitpro/
+# one-off boot diagnostics, kept locally only
+/wup-menu/apps/diag_flash/
+/wup-menu/apps/diag_screen/

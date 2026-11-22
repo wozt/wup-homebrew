@@ -1,6 +1,7 @@
 /* menu_slot: a new Homebrew Menu into the menu slot (include/wup_system.h; system apps only). The slot is wup-menu's
  * (tools/mkflash.py, boot/loader.c): header sector 0x30000, image 0x31000 up to 0x8FFFF, and the menu's WUP_BIGMEM
- * code as a {"WUPB", stored, raw, crc} blob right after the image on a sector boundary (libwup's big.c finds it).
+ * code as a {"WUPB", stored, raw, crc} blob right after the image on a sector boundary (libwup's big.c finds it;
+ * stored == raw: uncompressed).
  * Each 4 KB sector is erased, written and read back through the firmware's flash driver; the header goes last.
  * homebrew_menu.bin is the header sector, then the stored image (the header's size), then the blob: past it the
  * extra bytes land at the next sector boundary, where big.c looks for them. */
@@ -17,7 +18,7 @@ typedef int (*er_fn)(u32 h, u32 first, u32 count);
 #define BUF ((u8 *)0x0034e000u)                       /* uncached, DMA-reachable: the flash bounce buffer (handoff.h) */
 #define SLOT_HDR 0x00030000u
 #define SLOT_IMG 0x00031000u
-#define SLOT_END 0x00090000u
+#define SLOT_END 0x000b0000u                      /* up to the settings sectors: 0x90000-0xAFFFF is free (docs/architecture.md) */
 #define BIGB     0x42505557u                          /* "WUPB": the blob's header magic */
 
 static u8 hdr[20], sec[4096];

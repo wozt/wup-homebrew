@@ -25,6 +25,7 @@ from test_server import pattern
 VER = 1
 HDR = struct.Struct('<BBHI')
 CMD_AUTH, CMD_PING, CMD_STAT, CMD_OPENDIR, CMD_READDIR, CMD_FREEDIR, CMD_OPEN, CMD_READ, CMD_CLOSE = range(1, 10)
+CMD_DELETE = 11
 
 
 def recvn(s, buf, n):
@@ -83,6 +84,8 @@ class ClientProtoTest(unittest.TestCase):
         os.makedirs(os.path.join(cls.root, 'ROMs'))
         with open(os.path.join(cls.root, 'hello.txt'), 'wb') as f:
             f.write(b'hello netfs\n')
+        with open(os.path.join(cls.root, 'todelete.txt'), 'wb') as f:
+            f.write(b'doomed\n')
         # 300 KiB: bigger than the 32 KiB cache window and than one READDIR page of names is irrelevant;
         # exercises both the cached-window path and straight-through reads
         with open(os.path.join(cls.root, 'ROMs', 'mid.bin'), 'wb') as f:
@@ -99,6 +102,13 @@ class ClientProtoTest(unittest.TestCase):
         cls.lsock.listen(8)
         cls.th = threading.Thread(target=cls.loop, daemon=True)
         cls.th.start()
+        # a second listener with --read-write, for DELETE/WRITE
+        cls.lsock_rw = socket.socket()
+        cls.lsock_rw.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        cls.lsock_rw.bind(('127.0.0.1', 0))
+        cls.port_rw = cls.lsock_rw.getsockname()[1]
+        cls.lsock_rw.listen(8)
+        threading.Thread(target=cls.loop_rw, daemon=True).start()
 
     @classmethod
     def loop(cls):
@@ -110,8 +120,18 @@ class ClientProtoTest(unittest.TestCase):
             threading.Thread(target=srv.Conn(sk, cls.root, 'tok').serve, daemon=True).start()
 
     @classmethod
+    def loop_rw(cls):
+        while True:
+            try:
+                sk, _ = cls.lsock_rw.accept()
+            except OSError:
+                return
+            threading.Thread(target=srv.Conn(sk, cls.root, 'tok', rw=True).serve, daemon=True).start()
+
+    @classmethod
     def tearDownClass(cls):
         cls.lsock.close()
+        cls.lsock_rw.close()
         shutil.rmtree(cls.root, ignore_errors=True)
 
     def pad(self):
@@ -183,6 +203,23 @@ class ClientProtoTest(unittest.TestCase):
             off += want
         p.ok(CMD_CLOSE, struct.pack('<I', hid))
         p.close()
+
+    def test_delete(self):
+        # the read-only listener refuses DELETE
+        p = self.pad()
+        st, _ = p.x(CMD_DELETE, b'/todelete.txt\x00')
+        self.assertEqual(st, srv.errno.EROFS)
+        p.close()
+        # the --read-write one removes it; a second DELETE finds nothing
+        p2 = Pad(self.port_rw, 'tok')
+        p2.ok(CMD_DELETE, b'/todelete.txt\x00')
+        self.assertFalse(os.path.exists(os.path.join(self.root, 'todelete.txt')))
+        st, _ = p2.x(CMD_DELETE, b'/todelete.txt\x00')
+        self.assertEqual(st, srv.errno.ENOENT)
+        # a non-empty directory is refused too (rmdir)
+        st, _ = p2.x(CMD_DELETE, b'/ROMs\x00')
+        self.assertEqual(st, srv.errno.ENOTEMPTY)
+        p2.close()
 
     def test_reconnect_loses_handles(self):
         p = self.pad()

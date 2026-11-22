@@ -4,7 +4,7 @@
 #define APP_CODE_MAX 0xd9000u                 /* what fits the stage (libwup/include/handoff.h) */
 typedef struct { char path[96], name[32], author[32], version[16], description[96]; uint32_t code_off, code_size, code_crc, icon_off; } app_entry_t;
 extern app_entry_t apps_list[APPS_MAX];
-extern int apps_count;
+extern int apps_count, apps_gen;
 int apps_scan(void);
 int apps_load_icon(int i, void *dst);         /* 1 = WUP_ICON x WUP_ICON RGB565 loaded */
 int apps_remove(int i);

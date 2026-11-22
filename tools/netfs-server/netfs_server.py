@@ -6,7 +6,7 @@
 Serves a folder over the small framed TCP protocol of PROTOCOL.md (version 1). One thread per
 client; every request is length-framed and size-capped. The service is meant for a trusted LAN:
 traffic is NOT encrypted (use --token as light authentication only, never expose it to the
-Internet). Writes are not implemented yet: OPEN is read-only, everything else mutating is refused.
+Internet). Mutations need --read-write: OPEN for write, WRITE (uploads) and DELETE.
 """
 import argparse
 import errno
@@ -20,6 +20,7 @@ import threading
 
 VER = 1
 CMD_AUTH, CMD_PING, CMD_STAT, CMD_OPENDIR, CMD_READDIR, CMD_FREEDIR, CMD_OPEN, CMD_READ, CMD_CLOSE, CMD_WRITE = range(1, 11)
+CMD_DELETE = 11
 T_REG, T_DIR = 0, 1
 
 MAX_PATH = 512
@@ -214,6 +215,15 @@ class Conn:
                 os.close(fd)
         return 0, b''
 
+    def cmd_delete(self, p):
+        # path bytes; files go, directories only when empty (rmdir refuses a non-empty one)
+        real = self.resolve(p.rstrip(b'\x00').decode('utf-8', 'surrogateescape'))
+        try:
+            os.remove(real)
+        except IsADirectoryError:
+            os.rmdir(real)
+        return 0, b''
+
     def dispatch(self, cmd, payload):
         if cmd == CMD_AUTH:
             return self.cmd_auth(payload)
@@ -237,6 +247,8 @@ class Conn:
             return self.cmd_close(payload)
         if cmd == CMD_WRITE:
             return self.cmd_write(payload) if self.rw else errno.EROFS
+        if cmd == CMD_DELETE:
+            return self.cmd_delete(payload) if self.rw else errno.EROFS
         return errno.ENOSYS
 
     def serve(self):

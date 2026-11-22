@@ -67,6 +67,9 @@ static int menu_load(volatile wup_handoff_t *pb, const menu_at *m) {
     if (flash_read(m->hdr + 0x1000, (void *)WUP_HANDOFF_STAGE, size)) { dbg("[loader] flash read failed\n"); return 0; }
     if (crc32((const u8 *)WUP_HANDOFF_STAGE, size) != m->h[2]) { dbg("[loader] menu CRC mismatch\n"); return 0; }
     pb->stage_size = size; pb->stage_raw = m->h[3];
+    pb->app_path[0] = 0;                                /* the menu is not an app: a stale app_path would send
+                                                           wup__big_load down the .wup branch (netfs not up yet,
+                                                           or a bigmem size that is not the menu's) -> it cannot run */
     return 1;
 }
 /* the menu to the stage, checked; 0 = there is none */

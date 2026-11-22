@@ -106,7 +106,7 @@ def link(objs, bdir, large, name, final=True, net_spare=0, screen8=False, in_app
     if not large:
         script = ('SECTIONS { . = 0x%x; .header : { KEEP(*(.header)) } .text : { *(.text.entry) *(.text*) } .rodata : { *(.rodata*) }'
                   ' .data : { *(.data*) } . = ALIGN(4); __bss_start = .; .bss : { *(.bss*) *(COMMON) } . = ALIGN(4);'
-                  ' __bss_end = .; __bss2_start = .; __bss2_end = .;%s }\n' % (BASE, discard))
+                  ' __bss_end = .; __bss2_start = .; __bss2_end = .; .wup_lvglbuf (NOLOAD) : { *(.wup_lvglbuf*) }%s }\n' % (BASE, discard))
     else:
         # large: code in WUP_SPARE; header, data, constants (or, variant 1, only header and data) and the
         # stack at 0x350000; all other .bss in WUP_BIGMEM below the screen, where the heap then starts
@@ -122,12 +122,14 @@ def link(objs, bdir, large, name, final=True, net_spare=0, screen8=False, in_app
                   '  .data : { *(.data*)%s . = ALIGN(4); __seg1_end = .; } > app'
                   '  .stack (NOLOAD) : { __bss_start = .; *(.bss.stack) . = ALIGN(4); __bss_end = .; } > app'
                   '  .text : { *(.text*)%s . = ALIGN(4); __seg2_end = .; } > spare'
-                  '  .bss (NOLOAD) : { . = ALIGN(32); __bss2_start = .; *(.bss*) *(COMMON) . = ALIGN(32); __bss2_end = .; } > big%s }\n'
+                  '  .bss (NOLOAD) : { . = ALIGN(32); __bss2_start = .; *(.bss*) *(COMMON) . = ALIGN(32); __bss2_end = .; } > big'
+                  '  .wup_lvglbuf (NOLOAD) : { *(.wup_lvglbuf*) } > spare%s }\n'
                   % (BASE, LIMIT - BASE, SPARE, SPARE_END - SPARE, BIG, big_end - BIG, ''.join(' %s(.text* .rodata*)' % x for x in in_big), app_text, ro_app, ro_spare, discard))
     open(ld, 'w').write(script)
     elf = os.path.join(bdir, 'app.elf')
-    r = subprocess.run([paths.LD, '--gc-sections', '--error-limit=0', '-e', '_wup_entry', '-u', '_wup_header', '-T', ld, '-o', elf] + objs,
-                       capture_output=True, text=True)
+    cmd = [paths.LD, '--gc-sections', '--error-limit=0', '-e', '_wup_entry', '-u', '_wup_header', '-T', ld, '-o', elf] + objs
+    if os.environ.get('WUP_DEBUG_LINK'): open('/tmp/wup_link_cmd.txt', 'w').write('\n'.join(cmd))
+    r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode:
         if not final and ('will not fit' in r.stderr or 'overflow' in r.stderr): return None
         sys.exit('link failed:\n' + r.stderr[-4000:])

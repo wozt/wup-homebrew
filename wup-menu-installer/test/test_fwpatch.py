@@ -73,6 +73,8 @@ def main():
     size, mcrc = struct.unpack_from('<II', bundle, 0x2004)
     assert crc(bundle[0x3000:0x3000 + size]) == mcrc
     at = (0x3000 + size + 0xfff) & ~0xfff                              # the apps the menu puts on the pad (menu/bundle.c)
+    if bundle[at:at + 4] == b'WUPB':                                   # the bigmem blob may sit before the table (menu/bundle.c)
+        at = (at + 16 + struct.unpack_from('<I', bundle, at + 4)[0] + 0xfff) & ~0xfff
     assert bundle[at:at + 4] == b'WAPS'
     for i in range(struct.unpack_from('<I', bundle, at + 4)[0]):
         wid, ver, off, n, c = struct.unpack_from('<32s16sIII', bundle, at + 8 + 60 * i)

@@ -39,6 +39,7 @@ connection idle timeout 30 s.
 | 8 | READ | `handle u32`, `offset u64`, `len u32` | file bytes (short at EOF) |
 | 9 | CLOSE | `handle u32` | empty |
 | 10 | WRITE | `handle u32`, `offset u64`, then data bytes (`--read-write` only, else `EROFS`) | empty |
+| 11 | DELETE | path bytes (`--read-write` only, else `EROFS`) | empty |
 
 ### READDIR entry format
 
@@ -58,6 +59,7 @@ The client parses entries until exactly 4 bytes remain.
   symlinks pointing outside are refused (`EACCES`/`ENOENT`).
 - WRITE takes an absolute offset like READ (`pwrite`); OPEN with bit0 set needs a
   server started with `--read-write`, otherwise `EROFS`. bit1 adds `O_CREAT|O_TRUNC`.
+- DELETE removes a file, or an empty directory (`rmdir`); it also needs `--read-write`.
 
 ## Client behaviour (libwup)
 

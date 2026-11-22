@@ -69,11 +69,11 @@ own setter (LVC 0x3baa4); the files stay.
 | Product1 LVC_ + 0x63a0e (0x163a82) | `bl` to the hook (was `bl get_boot_mode`) |
 | Product1 LVC_ + 0xb951c (0x1b5590) | the hook |
 | 0x10000-0x11FFF | the loader (`CFW1`) |
-| 0x30000 / 0x31000 | menu slot (to 0x8FFFF, 380 KB): header `{"WMNU", stored size, crc32, inflated size, stamp}` / menu image |
+| 0x30000 / 0x31000 | menu slot (to 0xAFFFF): header `{"WMNU", stored size, crc32, inflated size, stamp}` / menu image / then the bigmem code as a `{"WUPB", stored, raw, crc}` blob (uncompressed: stored == raw) |
 | bank + 0x2C9000 | the Wii U install's bundle, after the firmware's last section: loader, menu header sector, menu image, then App Store and Software Update (a "WAPS" table and their .wup files) |
 | 0xB0000, 0xB1000 | menu settings (two `WCFG` records with sequence number and CRC) |
 | 0x900000-0x10FFFFF or 0x1100000-0x18FFFFF | littlefs (8 MB: `/apps`, app data) in whichever of **Lang1 / Lang2** the pad does not use for its message screens (see below) |
-| 0x12000-0x2FFFF, 0x90000-0xAFFFF, 0xB2000-0xFFFFF | free (the filesystem until 2026-11-18) |
+| 0x12000-0x2FFFF, 0xB2000-0xFFFFF | free (the filesystem until 2026-11-18) |
 
 A stock GamePad firmware update (or the installer's Remove) writes the other bank without the hook; everything in
 the gap stays (unused until the hook is installed again).

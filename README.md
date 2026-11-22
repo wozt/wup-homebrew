@@ -40,6 +40,22 @@ Apps have repositories of their own and come to the GamePad through the App Stor
 
 Write your own with [libwup](libwup): `kit = yes` in an app's `app.cfg` gives it the menu's look.
 
+## Network Storage
+
+The menu can run `.wup` apps straight from a computer on your LAN — nothing is copied to
+the GamePad's flash. Run the little server on the machine that holds the apps:
+
+```sh
+python3 tools/netfs-server/netfs_server.py --root /path/to/share --host 0.0.0.0 --port 8734 --read-write
+```
+
+Then in the Homebrew Menu: **Settings → Network → Network Storage** → server IP, port,
+token, enable. The share's `.wup` files appear on the home screen under
+**Network Storage**: **A** runs one, **-** shows its info (version, size) and offers
+**Delete App**. `--read-write` also allows uploading apps to the share; without it the
+server is read-only. Details and options: [tools/netfs-server](tools/netfs-server/README.md).
+The protocol is LAN-only and not encrypted — keep it on a trusted network.
+
 ## Quick start
 
 Needs LLVM (`clang`, `ld.lld`), Python 3 with Pillow, meson and ninja. macOS: `brew install llvm lld meson ninja`.

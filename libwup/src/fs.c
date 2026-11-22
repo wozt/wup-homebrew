@@ -19,6 +19,7 @@
 #include <string.h>
 #include "littlefs/lfs.h"
 #include "fs.h"
+#include "armcpu.h"
 typedef uint32_t u32; typedef uint8_t u8;
 typedef int (*rw_fn)(u32 h, u32 addr, void *buf, u32 len, u32 *done);
 typedef int (*er_fn)(u32 h, u32 first, u32 count);
@@ -45,6 +46,7 @@ static int bd_read(const struct lfs_config *c, lfs_block_t b, lfs_off_t off, voi
     while (size) {
         u32 k = size < 4096 ? size : 4096, done = 0;
         if (FL_READ(HANDLE, a + off, BOUNCE, k, &done)) return LFS_ERR_IO;
+        cache_flush(BOUNCE, 4096);                      /* the DMA wrote it: drop any stale cached copy first */
         memcpy(d, BOUNCE, k); d += k; off += k; size -= k;
     }
     return 0;
@@ -55,6 +57,7 @@ static int bd_prog(const struct lfs_config *c, lfs_block_t b, lfs_off_t off, con
     while (size) {
         u32 k = size < 4096 ? size : 4096, done = 0;
         memcpy(BOUNCE, s, k);
+        cache_clean(BOUNCE, 4096);                      /* write-back before the DMA reads it */
         if (FL_WRITE(HANDLE, a + off, BOUNCE, k, &done)) return LFS_ERR_IO;
         s += k; off += k; size -= k;
     }
@@ -77,6 +80,7 @@ static int has_fs(u32 base) {                         /* littlefs's superblock: 
     u32 done;
     for (int b = 0; b < 2; b++) {
         if (FL_READ(HANDLE, base + (u32)b * 4096, BOUNCE, 16, &done)) return -1;
+        cache_flush(BOUNCE, 4096);
         if (!memcmp(BOUNCE + 8, "littlefs", 8)) return 1;
     }
     return 0;
@@ -84,6 +88,7 @@ static int has_fs(u32 base) {                         /* littlefs's superblock: 
 static int has_screens(u32 base) {                    /* language data: how many pictures (the boot reader's first word), then their table */
     u32 done, n;
     if (FL_READ(HANDLE, base, BOUNCE, 4, &done)) return 0;
+    cache_flush(BOUNCE, 4096);
     memcpy(&n, BOUNCE, 4);
     return n >= 1 && n <= 1024;
 }
@@ -155,6 +160,7 @@ int fs_ok(void) { return mounted; }
 int fs_flash_read(u32 addr, void *dst, u32 len) {        /* raw flash, through the bounce buffer (len <= 4096) */
     u32 done;
     if (len > 4096 || FL_READ(HANDLE, addr, BOUNCE, len, &done)) return -1;
+    cache_flush(BOUNCE, 4096);
     memcpy(dst, BOUNCE, len);
     return 0;
 }

@@ -49,7 +49,7 @@ State state = LOADING;                     // (LOADING: the disclaimer, while Lo
 State after = MENU;                        // where the disclaimer leads
 bool loaded = false;
 uint32_t shownAt = 0;
-constexpr uint32_t DISCLAIMER_MS = 15000;
+constexpr uint32_t DISCLAIMER_MS = 2000;   // (was 15000: the fork keeps the disclaimer but drops the long wait)
 constexpr float PROMPT_FADE_MS = 600.0f, PROMPT_PULSE_MS = 2000.0f;
 constexpr uint32_t FADE_MS = 400;          // the disclaimer fades out to black, then the installer fades in
 uint32_t fadeOutAt = 0, fadeInAt = 0;

@@ -4,8 +4,8 @@
  * that have such code (tools/wupbuild.py adds this file and tinf).
  *
  * The menu is not a .wup: its app_path is empty and its WUP_BIGMEM code is in its own flash slot instead, right
- * after the stored image (tools/mkflash.py writes it there: a {"WUPB", stored, raw, crc} header and the deflated
- * code). The loader runs the newer of the menu slot's and the running bank's bundle menu; the same choice is made
+ * after the stored image (tools/mkflash.py writes it there: a {"WUPB", stored, raw, crc} header and the code,
+ * stored == raw: uncompressed — read straight into WUP_BIGMEM). The loader runs the newer of the menu slot's and the running bank's bundle menu; the same choice is made
  * here from their WMNU headers, so a menu updated over Wi-Fi finds its own blob. */
 #include <stdlib.h>
 #include <string.h>
@@ -48,20 +48,19 @@ static uint32_t menu_big_addr(void) {
 
 static int big_from_flash(uint32_t at, uint32_t want) {
     uint8_t bh[16];
+    if (!at) return -1;
     if (fs_flash_read(at, bh, sizeof bh) || get32(bh) != BIGB) { wup_log("[libwup] the menu's WUP_BIGMEM code is missing\n"); return -1; }
     uint32_t stored = get32(bh + 4), raw = get32(bh + 8), crc = get32(bh + 12);
-    if (raw != want) { wup_log("[libwup] the menu's WUP_BIGMEM code is missing\n"); return -1; }
-    uint8_t *z = malloc(stored);
-    if (!z) return -2;
-    for (uint32_t off = 0; off < stored; off += 4096) {
-        uint32_t k = stored - off < 4096 ? stored - off : 4096;
-        if (fs_flash_read(at + 16 + off, z + off, k)) { free(z); return -3; }
+    if (raw != want || stored != raw) { wup_log("[libwup] the menu's WUP_BIGMEM code is missing\n"); return -1; }
+
+    /* the blob is stored uncompressed (stored == raw): the menu's heap is too small for even the deflated code,
+       and the framebuffer is not ours to borrow — read it straight into WUP_BIGMEM, 4 KB at a time */
+    for (uint32_t off = 0; off < raw; off += 4096) {
+        uint32_t k = raw - off < 4096 ? raw - off : 4096;
+        if (fs_flash_read(at + 16 + off, __big_start + off, k)) { wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -3; }
     }
-    int r = crc32(z, stored) == crc ? 0 : -4;
-    unsigned n = want;
-    if (!r && (tinf_uncompress(__big_start, &n, z, stored) != TINF_OK || n != want)) r = -5;
-    free(z);
-    if (r) { wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return r; }
+
+    if (crc32(__big_start, raw) != crc) { wup_log("[libwup] the menu's WUP_BIGMEM code is damaged\n"); return -4; }
     sync_code((uint32_t)__big_start, want);
     return 0;
 }
@@ -69,6 +68,7 @@ static int big_from_flash(uint32_t at, uint32_t want) {
 int wup__big_load(void) {                          /* 0, or < 0: the app cannot run (its code is missing) */
     wup_hdr_t h; uint32_t want = (uint32_t)(__big_end - __big_start);
     if (!want) return 0;
+
     if (!wup_app_path()[0]) return big_from_flash(menu_big_addr(), want);   /* the menu: its blob is in the flash slot */
     if (fs_read(wup_app_path(), 0, &h, sizeof h) != (int)sizeof h || h.magic != WUP_MAGIC || h.hdr_size < WUP_HDR_V4
         || h.big_addr != (uint32_t)__big_start || h.big_raw != want) { wup_log("[libwup] this app's code for WUP_BIGMEM is missing\n"); return -1; }

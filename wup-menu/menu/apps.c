@@ -13,7 +13,7 @@
 typedef uint32_t u32; typedef uint8_t u8;
 
 app_entry_t apps_list[APPS_MAX];
-int apps_count;
+int apps_count, apps_gen;                 /* apps_gen bumps on every scan: caches keyed on it stay honest */
 
 static int ends_wup(const char *n) { int l = (int)strlen(n); return l > 4 && !strcmp(n + l - 4, ".wup"); }
 
@@ -50,7 +50,7 @@ static void add_folder(const char *dir) {
     add(p, sz);
 }
 int apps_scan(void) {
-    apps_count = 0;
+    apps_count = 0; apps_gen++;
     if (!fs_ok()) return 0;
     lfs_dir_t d; struct lfs_info info;
     if (lfs_dir_open(&fs_lfs, &d, "/apps")) return 0;

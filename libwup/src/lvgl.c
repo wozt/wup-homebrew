@@ -30,6 +30,9 @@ static void flush_direct(lv_display_t *d, const lv_area_t *a, uint8_t *px) {
     lv_display_flush_ready(d);
 }
 #define BUF_ROWS 80                                    /* a sixth of the screen (133 KB): a whole list row and more at once */
+#ifdef WUP_LVGL_BUF_SPARE
+static px_t buf_spare[GFX_W * BUF_ROWS] __attribute__((section(".wup_lvglbuf"), aligned(64)));   /* WUP_SPARE's free tail: no heap needed */
+#endif
 static void touch_read(lv_indev_t *i, lv_indev_data_t *d) {
     static int x, y;
     (void)i;
@@ -78,7 +81,11 @@ lv_display_t *wup_lvgl_init(void) {
     lv_tick_set_cb(tick);
     fb = wup_screen();
     lv_display_t *d = lv_display_create(GFX_W, GFX_H);
+#ifdef WUP_LVGL_BUF_SPARE
+    void *buf = buf_spare;
+#else
     void *buf = malloc((size_t)GFX_W * BUF_ROWS * sizeof(px_t));
+#endif
     if (buf) { lv_display_set_flush_cb(d, flush); lv_display_set_buffers(d, buf, 0, GFX_W * BUF_ROWS * sizeof(px_t), LV_DISPLAY_RENDER_MODE_PARTIAL); }
     else { lv_display_set_flush_cb(d, flush_direct); lv_display_set_buffers(d, fb, 0, GFX_W * GFX_H * sizeof(px_t), LV_DISPLAY_RENDER_MODE_DIRECT); }   /* (no memory: as before) */
     touch_ = lv_indev_create(); lv_indev_set_type(touch_, LV_INDEV_TYPE_POINTER); lv_indev_set_read_cb(touch_, touch_read);

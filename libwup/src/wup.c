@@ -1,6 +1,7 @@
 /* libwup (see wup.h) */
 #include <setjmp.h>
 #include <stdlib.h>
+#include <string.h>
 #include "wup.h"
 #include "mmu.h"
 #include "wup_hw.h"

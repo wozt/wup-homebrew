@@ -7,7 +7,7 @@
 The menu is an app image (menu, built like any app), stored deflated: header sector 0x30000 {"WMNU", stored size,
 crc32, inflated size, stamp} written LAST, the image at 0x31000. Each 4 KB sector goes through an uncached buffer and an
 on-pad helper (tools/flashwr.c) that erases, writes and verifies it; then the whole image is read back.
-'menu' never touches flash outside the menu slot 0x30000-0x8FFFF. The first install (the hook, the loader) goes
+'menu' never touches flash outside the menu slot 0x30000-0xAFFFF. The first install (the hook, the loader) goes
 over UART: tools/flash/gamepad_flash.py install-cfw."""
 import os, struct, sys, zlib
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
