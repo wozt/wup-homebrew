@@ -121,7 +121,11 @@
 #define SNTP_SET_SYSTEM_TIME_US(sec, us) clock_set_from_network((sec), (us))
 void clock_set_from_network(unsigned sec, unsigned us);
 #define TCP_MSS                     1460
+#ifdef WUP_NET_TCP_WND_MSS
+#define TCP_WND                     (WUP_NET_TCP_WND_MSS * TCP_MSS)
+#else
 #define TCP_WND                     (12 * TCP_MSS)
+#endif
 #define TCP_SND_BUF                 (8 * TCP_MSS)
 #define TCP_SND_QUEUELEN            (4 * TCP_SND_BUF / TCP_MSS)
 #define DNS_MAX_SERVERS             2
