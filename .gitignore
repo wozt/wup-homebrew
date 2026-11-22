@@ -22,3 +22,4 @@ wup-emu/bootrom.bin
 # one-off boot diagnostics, kept locally only
 /wup-menu/apps/diag_flash/
 /wup-menu/apps/diag_screen/
+AGENTS.md
