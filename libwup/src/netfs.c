@@ -25,6 +25,8 @@ int netfs_path(const char *p) { return !strcmp(p, "/net") || !strncmp(p, "/net/"
 static int no_net(void) { errno = ENODEV; return -1; }
 int  netfs_open(const char *p, int f, void **o) { (void)p; (void)f; (void)o; return no_net(); }
 int  netfs_read(void *h, void *b, size_t n) { (void)h; (void)b; (void)n; return no_net(); }
+int  netfs_write(void *h, const void *b, size_t n) { (void)h; (void)b; (void)n; return no_net(); }
+int  netfs_delete(const char *p) { (void)p; return no_net(); }
 int  netfs_seek(void *h, int64_t o, int w) { (void)h; (void)o; (void)w; return no_net(); }
 int  netfs_size(void *h, uint64_t *s) { (void)h; (void)s; return no_net(); }
 int64_t netfs_tell(void *h) { (void)h; return no_net(); }
@@ -56,6 +58,8 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32; typedef uint64_t
 #define CMD_OPEN    7
 #define CMD_READ    8
 #define CMD_CLOSE   9
+#define CMD_WRITE   10
+#define CMD_DELETE  11
 #define NFS_VER     1
 
 #define NF_HANDLES 6
@@ -71,7 +75,7 @@ typedef uint8_t u8; typedef uint16_t u16; typedef uint32_t u32; typedef uint64_t
 #define CACHE_MIN   4096
 
 typedef struct {
-    int used, dead, is_dir;
+    int used, dead, is_dir, wr;
     u32 id;
     u64 pos, size;
     char *path;                             /* malloc'd: lets a dead handle reopen once */
@@ -306,12 +310,12 @@ int netfs_stat(const char *path, u64 *size, int *is_dir) {
     return r;
 }
 
-static int remote_open(const char *path, hf_t *h) {  /* fill h->id/size/is_dir; 0 or -1 (lerr set) */
+static int remote_open(const char *path, hf_t *h, int flags) {  /* fill h->id/size/is_dir; 0 or -1 (lerr set) */
     char sp[NF_MAX_PATH + 8]; u8 rq[NF_MAX_PATH + 8], rs[16], st;
     if (srv_path(path, sp, sizeof sp)) return -1;
     u32 l = (u32)strlen(sp);
     if (l + 1 > sizeof rq) { lerr = ENAMETOOLONG; return -1; }
-    memcpy(rq, sp, l); rq[l] = 0;                       /* flags byte: 0 = read-only */
+    memcpy(rq, sp, l); rq[l] = (u8)flags;                 /* protocol flags: bit0 write, bit1 create/truncate */
     int n = transact(CMD_OPEN, rq, l + 1, rs, sizeof rs, &st);
     if (n < 0) return -1;
     if (st) { lerr = st; return -1; }
@@ -339,11 +343,13 @@ static hf_t *handle_get(void *p) {
 }
 
 int netfs_open(const char *path, int flags, void **out) {
-    (void)flags;                                       /* read-only: the caller checked the mode */
+    int fl = (flags & O_ACCMODE) != O_RDONLY ? 1 : 0;   /* bit0: writable */
+    if (flags & (O_CREAT | O_TRUNC)) fl |= 2;           /* bit1: create/truncate */
     NF_ENTER();
     hf_t *h = handle_new(path);
     if (!h) { lerr = ENOMEM; NF_LEAVE(); return -1; }
-    if (remote_open(path, h)) { handle_free(h); NF_LEAVE(); return -1; }
+    if (remote_open(path, h, fl)) { handle_free(h); NF_LEAVE(); return -1; }
+    h->wr = fl & 1;
     *out = (void *)(uintptr_t)((h - hf) + 1);
     NF_LEAVE();
     return 0;
@@ -352,7 +358,8 @@ int netfs_open(const char *path, int flags, void **out) {
 /* reopen a dead handle by its path */
 static int handle_ensure(hf_t *h) {
     if (!h->dead) return 0;
-    if (remote_open(h->path, h)) return -1;
+    int fl = h->wr ? 1 : 0;
+    if (remote_open(h->path, h, fl)) return -1;
     h->dead = 0;
     return 0;
 }
@@ -424,6 +431,49 @@ int netfs_read(void *p, void *buf, size_t n) {
     return r;
 }
 
+/* one WRITE exchange: the request is handle+offset (12 bytes) followed by the data itself,
+   streamed straight from the caller's buffer (no copy, no big staging buffer) */
+static int write_raw(hf_t *h, const void *buf, u32 n) {
+    u8 th[8], rq[12], rh[8];
+    put32(rq, h->id); put64(rq + 4, h->pos);
+    req_head(th, CMD_WRITE, 12 + n);
+    if (send_all(th, 8) || send_all(rq, 12) || send_all(buf, n) || recv_all(rh, 8)) return -1;
+    if (rh[1] != NFS_VER) { lerr = EPROTO; drop(); return -1; }
+    if (get32(rh + 4)) { lerr = EPROTO; drop(); return -1; }   /* WRITE answers with an empty payload */
+    if (rh[0]) { lerr = rh[0]; return -1; }
+    return 0;
+}
+int netfs_write(void *p, const void *buf, size_t n) {
+    hf_t *h = handle_get(p);
+    if (!h) return -1;
+    if (!h->wr) { lerr = EBADF; return -1; }
+    if (h->is_dir) { lerr = EISDIR; return -1; }
+    NF_ENTER();
+    const u8 *out = buf;
+    u64 want = n;
+    int r = 0;
+    while (want) {
+        if (handle_ensure(h)) { if (r) break; r = -1; break; }
+        u32 chunk = want > 65536 ? 65536 : (u32)want;
+        if (write_raw(h, out, chunk)) { if (r) break; r = -1; break; }
+        out += chunk; h->pos += chunk; want -= chunk; r += (int)chunk;
+    }
+    if (r > 0 && c_h == (u64)(h - hf)) { c_len = 0; c_h = ~(u64)0; }   /* the read window no longer matches */
+    NF_LEAVE();
+    return r;
+}
+int netfs_delete(const char *path) {
+    char sp[NF_MAX_PATH + 8]; u8 st;
+    NF_ENTER();
+    if (srv_path(path, sp, sizeof sp)) { NF_LEAVE(); return -1; }
+    u32 l = (u32)strlen(sp);
+    if (l > NF_MAX_PATH) { lerr = ENAMETOOLONG; NF_LEAVE(); return -1; }
+    int n = transact(CMD_DELETE, sp, l, 0, 0, &st);
+    if (n < 0) { NF_LEAVE(); return -1; }
+    if (st) { lerr = st; NF_LEAVE(); return -1; }
+    NF_LEAVE();
+    return 0;
+}
 int netfs_seek(void *p, i64 off, int whence) {
     hf_t *h = handle_get(p);
     if (!h) return -1;

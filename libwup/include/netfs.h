@@ -40,6 +40,8 @@ typedef struct {
 int  netfs_path(const char *p);                 /* 1: p is "/net" or under it (absolute) */
 int  netfs_open(const char *path, int flags, void **out);   /* a remote handle; < 0 errno-style (-1) */
 int  netfs_read(void *h, void *buf, size_t n);             /* at the handle's position */
+int  netfs_write(void *h, const void *buf, size_t n);      /* at the handle's position (writable handles only) */
+int  netfs_delete(const char *path);                       /* a file, or an empty directory */
 int  netfs_seek(void *h, int64_t off, int whence);         /* SEEK_SET/CUR/END; < 0 errno-style */
 int  netfs_size(void *h, uint64_t *size);
 int64_t netfs_tell(void *h);                        /* the handle's position, or < 0 errno-style */

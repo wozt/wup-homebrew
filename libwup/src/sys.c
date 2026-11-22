@@ -63,11 +63,11 @@ int open(const char *path, int flags, ...) {
     const char *rp = full(path, b, sizeof b);
     while (i < NFILES && files[i].used) i++;
     if (i == NFILES) { errno = EMFILE; return -1; }
-    if (netfs_path(rp)) {                             /* the network share: read-only for now */
-        if (acc != O_RDONLY) { errno = EROFS; return -1; }
+    if (netfs_path(rp)) {                             /* the network share: writes need a --read-write server */
         void *h;
-        if (netfs_open(rp, 0, &h)) { errno = netfs_errno(); return -1; }
+        if (netfs_open(rp, flags, &h)) { errno = netfs_errno(); return -1; }
         files[i].used = 1; files[i].net = 1; files[i].u.nf = h;
+        if (flags & O_APPEND) netfs_seek(h, 0, SEEK_END);
         return FD_FILES + i;
     }
     lf = (acc == O_RDONLY ? LFS_O_RDONLY : acc == O_WRONLY ? LFS_O_WRONLY : LFS_O_RDWR) | (flags & O_CREAT ? LFS_O_CREAT : 0)
@@ -95,7 +95,7 @@ ssize_t read(int fd, void *buf, size_t n) {
 ssize_t write(int fd, const void *buf, size_t n) {
     if (fd >= 3 && fd < FD_FILES && wup__sock_write) return wup__sock_write(fd, buf, n);
     int i = slot(fd); if (i < 0) return -1;
-    if (files[i].net) { errno = EROFS; return -1; }
+    if (files[i].net) { int r = netfs_write(files[i].u.nf, buf, n); return r < 0 ? (errno = netfs_errno(), -1) : r; }
     lfs_ssize_t r = lfs_file_write(&fs_lfs, &files[i].u.lf, buf, n);
     return r < 0 ? lfs_fail(r) : r;
 }
@@ -145,7 +145,7 @@ int fstat(int fd, struct stat *st) {
 }
 int isatty(int fd) { return fd < 3; }
 static int net_ro(const char *path) { if (netfs_path(path)) { errno = EROFS; return 1; } return 0; }
-int unlink(const char *path) { char b[192]; const char *rp = full(path, b, sizeof b); if (net_ro(rp)) return -1; int r = lfs_remove(&fs_lfs, rp); return r ? lfs_fail(r) : 0; }
+int unlink(const char *path) { char b[192]; const char *rp = full(path, b, sizeof b); if (netfs_path(rp)) { return netfs_delete(rp) ? (errno = netfs_errno(), -1) : 0; } if (net_ro(rp)) return -1; int r = lfs_remove(&fs_lfs, rp); return r ? lfs_fail(r) : 0; }
 int rmdir(const char *path) { return unlink(path); }
 int mkdir(const char *path, mode_t mode) { char b[192]; const char *rp = full(path, b, sizeof b); (void)mode; if (net_ro(rp)) return -1; int r = lfs_mkdir(&fs_lfs, rp); return r ? lfs_fail(r) : 0; }
 int rename(const char *from, const char *to) {
