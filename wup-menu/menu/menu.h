@@ -7,6 +7,7 @@
 #include "sys.h"
 #include "apps.h"
 #include "wuplink.h"
+#include "netfs.h"
 #include "wifi/wifi_hw.h"
 
 typedef struct {
@@ -23,11 +24,14 @@ extern menu_t M;
 void menu_save(void);                      /* the settings to flash */
 void menu_share_save(void);
 void menu_share_password(const char *pw);
+netfs_cfg_t *menu_netfs(void);             /* network storage settings (/config/netfs); edit then menu_netfs_save() */
+void menu_netfs_save(void);
 void menu_poll(void);                      /* the network and the services: called from every waiting loop */
 void menu_wait(int ms);                    /* draw, handle input and menu_poll for ms (not from inside an LVGL event) */
 int menu_radio(void);                      /* the radio patched and up: 0 = ready */
 const char *menu_connect(const wifi_net *n, const char *pass);   /* NULL = connected (the list shows it: a checkmark) */
 const char *menu_start(const char *wup_path);     /* start an app when the menu's loop ends; NULL = it will */
+const char *menu_start_netapp(const char *remote, uint32_t stage_size, uint32_t stage_raw);   /* an app already staged from /net (its saves go to /save/net/<slug>/) */
 /* clock.c */
 typedef struct { const char *id, *name, *tz; } clock_zone_t;     /* tz: a POSIX TZ rule */
 extern const clock_zone_t clock_zones[]; extern const int clock_nzones;

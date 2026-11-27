@@ -89,6 +89,7 @@ __attribute__((section(".text.entry"), target("arm"), noinline)) int _wup_entry(
 #include "wupfmt.h"
 static char exec_arg[192];
 static wup_hdr_t exec_hdr;
+static int exec_pre;                                  /* the image is already at WUP_HANDOFF_STAGE: stage_exec only names it */
 int wup_exec(const char *path, const char *arg) {
     wup_hdr_t *h = &exec_hdr;
     memset(h, 0, sizeof *h);
@@ -99,11 +100,29 @@ int wup_exec(const char *path, const char *arg) {
     if (!(h->flags & WUP_FLAG_KERNEL)) return -3;       /* a v1 app (built for Nintendo's firmware): not runnable */
     strncpy(exec_path, path, sizeof exec_path - 1);
     strncpy(exec_arg, arg ? arg : "", sizeof exec_arg - 1);
+    exec_pre = 0;
+    return 0;
+}
+/* an image already written at WUP_HANDOFF_STAGE (the menu streaming an app from /net): the kernel runs it like a
+   staged one; path is what the app sees as its own (its folder is where its saves go), size/raw as stage_exec's */
+int wup_exec_staged(const char *path, uint32_t size, uint32_t raw) {
+    if (!path[0] || !size) return -1;
+    exec_hdr.code_size = size; exec_hdr.code_raw = raw;
+    strncpy(exec_path, path, sizeof exec_path - 1);
+    exec_arg[0] = 0;
+    exec_pre = 1;
     return 0;
 }
 static int stage_exec(void) {
     volatile wup_handoff_t *pb = WUP_HANDOFF;
     u8 *dst = (u8 *)WUP_HANDOFF_STAGE;
+    if (exec_pre) {                                    /* already there: name it for the app, keep the stage as is */
+        cache_clean(dst, exec_hdr.code_size);
+        pb->stage_size = exec_hdr.code_size; pb->stage_raw = exec_hdr.code_raw;
+        for (int i = 0; i < 64; i++) pb->app_path[i] = i < 63 ? exec_path[i] : 0;
+        for (int i = 0; i < 192; i++) pb->arg[i] = i < 191 ? exec_arg[i] : 0;
+        return 0;
+    }
     if (fs_read(exec_path, exec_hdr.code_off, dst, exec_hdr.code_size) != (int)exec_hdr.code_size) return -1;
     if (crc32(dst, exec_hdr.code_size) != exec_hdr.code_crc) return -2;
     cache_clean(dst, exec_hdr.code_size);

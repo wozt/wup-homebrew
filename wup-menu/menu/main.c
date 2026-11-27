@@ -6,6 +6,7 @@
 #include "menu.h"
 #include "dbgsrv.h"
 #include "ftpd.h"
+#include "netshare.h"
 #include "wup_hw.h"
 #include "wupfmt.h"
 
@@ -33,6 +34,18 @@ void menu_share_save(void) {
     ftpd_set_auth(M.share_auth && M.share_pass_set, share_cfg.hash);
 }
 void menu_share_password(const char *pw) { ftpd_hash(pw, share_cfg.hash); M.share_pass_set = 1; M.share_auth = 1; menu_share_save(); }
+/* network storage (/net): /config/netfs, the record every app reads (include/netfs.h) */
+static netfs_cfg_t nfs_cfg;
+static void nfs_load(void) {
+    memset(&nfs_cfg, 0, sizeof nfs_cfg);
+    if (fs_read(NETFS_PATH, 0, &nfs_cfg, sizeof nfs_cfg) != (int)sizeof nfs_cfg || nfs_cfg.magic != NETFS_MAGIC) memset(&nfs_cfg, 0, sizeof nfs_cfg);
+}
+netfs_cfg_t *menu_netfs(void) { return &nfs_cfg; }
+void menu_netfs_save(void) {
+    nfs_cfg.magic = NETFS_MAGIC;
+    lfs_mkdir(&fs_lfs, "/config");
+    fs_write(NETFS_PATH, &nfs_cfg, sizeof nfs_cfg);
+}
 void menu_refresh_info(void) {
     static char fw[32], st[48];
     uint32_t v = 0;
@@ -64,6 +77,7 @@ void menu_poll(void) {
     if (dbg_open) dbgsrv_step();
     if (ftp_open) ftpd_step();
     wuplink_step();
+    ns_step();
 }
 void menu_wait(int ms) {
     for (int t = 0; t < ms && !leaving; t += 10) { wup_lvgl_run(10); menu_poll(); }
@@ -143,13 +157,21 @@ static void autojoin_step(void) {
 }
 
 /* ---- starting and installing apps */
+static void handoff_fill(void);
+static void slug(char *o, const char *name);
 const char *menu_start(const char *path) {
-    volatile wup_handoff_t *pb = WUP_HANDOFF;
+    ns_abort();                                       /* a /net test or browse in progress ends with the menu */
     if (dbgsrv_active()) return "A computer is connected in Developer Mode. Try again when it's done.";   /* (an install over
                                                        Wi-Fi is the menu's own: leaving would cut it off, half written) */
     int e = wup_exec(path, 0);
     if (e == -3) return "It was made for an older version of the Homebrew Menu. Look for a newer one.";
     if (e) return "It may be damaged.";
+    handoff_fill();
+    leaving = 1;
+    return 0;
+}
+static void handoff_fill(void) {                     /* what the loader reads as the menu ends (menu_start's tail) */
+    volatile wup_handoff_t *pb = WUP_HANDOFF;
     pb->flags = (radio_ready ? WUP_HO_RADIO_READY : 0) | (M.ip[0] ? WUP_HO_WIFI_JOINED : 0);
     pb->menu_sel = (uint32_t)ui_selected();
     pb->light = (uint8_t)(M.cfg.brightness * 10 + 1);
@@ -163,6 +185,21 @@ const char *menu_start(const char *path) {
         for (int i = 0; i < 6; i++) pb->net_mac[i] = mac[i];
         pb->flags |= WUP_HO_NET_INFO;
     }
+}
+/* an app streamed from the network share: its code is already at WUP_HANDOFF_STAGE (netshare's fetch);
+   it runs without touching /apps — its saves live in /save/net/<slug>/ (app_dir comes from app_path) */
+const char *menu_start_netapp(const char *remote, uint32_t stage_size, uint32_t stage_raw) {
+    char base[64], s[32], dir[96], path[128];
+    const char *b = strrchr(remote, '/'); b = b ? b + 1 : remote;
+    snprintf(base, sizeof base, "%s", b);
+    char *dot = strrchr(base, '.'); if (dot) *dot = 0;
+    slug(s, base);
+    snprintf(dir, sizeof dir, "/save/net/%s", s);
+    lfs_mkdir(&fs_lfs, "/save/net"); lfs_mkdir(&fs_lfs, dir);
+    snprintf(path, sizeof path, "%s/%s.wup", dir, s);
+    ns_abort();
+    if (wup_exec_staged(path, stage_size, stage_raw)) return "The app could not be staged";
+    handoff_fill();
     leaving = 1;
     return 0;
 }
@@ -237,6 +274,7 @@ int main(void) {
     hw_backlight(M.cfg.brightness * 10);
     if (have && M.cfg.wifi_saved) aj_state = 1;
     share_load();
+    nfs_load();
     clock_load();
     apps_scan();
     sys_power(&M.power);
