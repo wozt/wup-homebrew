@@ -13,7 +13,15 @@ static int ioctl_(u32 cmd, const void *data, u32 dlen, u32 n, int set) {
     return WUPK->wifi_ioctl(cmd, iobuf, n, set);
 }
 static int radio_ok, scan_err;
+static int dbg_heard, dbg_5g;                          /* what the card heard: BSS entries, and those on 5 GHz */
+static int dbg_ch[24], dbg_nch;                        /* the channels heard (for the "0 networks" note) */
 int wifi_scan_err(void) { return scan_err; }        /* the last wifi_scan's error (0: none, -2..: see wifi_hw.c) */
+int wifi_scan_heard(int *ch, int max) {              /* channels the last scan heard; returns their count */
+    int n = dbg_nch < max ? dbg_nch : max;
+    for (int i = 0; i < n; i++) ch[i] = dbg_ch[i];
+    return n;
+}
+void wifi_scan_stats(int *heard, int *g5) { *heard = dbg_heard; *g5 = dbg_5g; }
 int wifi_bringup(void) {
     if (radio_ok) return 0;
     int r = WUPK->wifi_up();
@@ -40,13 +48,21 @@ int wifi_scan(wifi_net *out, int max) {
     }
     if (e) { scan_err = e < 0 ? e : -e; return -1; }
     scan_err = 0;
+    dbg_heard = dbg_5g = dbg_nch = 0;
     u32 buflen = *(u32 *)iobuf, count = *(u32 *)(iobuf + 8), off = 12;
     if (buflen > SCANBUF) buflen = SCANBUF;
     int n = 0;
     for (u32 i = 0; i < count && off + 80 <= buflen; i++) {
         u8 *b = iobuf + off; u32 blen = *(u32 *)(b + 4);
+        if (blen < 80 || off + blen > buflen) break;   /* (a malformed entry ends the list, as in the kernel's scan) */
         u32 sl = b[18] > 32 ? 32 : b[18];
         int ch = *(u16 *)(b + 72) & 0xff, rssi = *(int16_t *)(b + 78), sec = (*(u16 *)(b + 16) & 0x10) != 0;
+        if (blen >= 80) {
+            dbg_heard++;
+            if (ch >= 36) dbg_5g++;
+            int k; for (k = 0; k < dbg_nch; k++) if (dbg_ch[k] == ch) break;
+            if (k == dbg_nch && dbg_nch < 24) dbg_ch[dbg_nch++] = ch;
+        }
         if (sl && ch >= 36) {
             int j;
             for (j = 0; j < n; j++) if (out[j].ssid_len == sl && !__builtin_memcmp(out[j].ssid, b + 19, sl)) break;

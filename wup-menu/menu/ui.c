@@ -423,7 +423,16 @@ static void wifi_screen(lv_obj_t *scr) {
     lv_obj_t *o = row(l, LV_SYMBOL_WIFI, "Other\xE2\x80\xA6", NULL, on_other, NULL);
     lv_obj_set_style_opa(lv_obj_get_child(o, 0), LV_OPA_TRANSP, 0);                              /* (no symbol; its name in line with the others) */
     if (nnets) note(l, "The GamePad joins 5 GHz networks.");
-    else { static char t[80]; snprintf(t, sizeof t, "No networks found (scan %s%d). 5 GHz Wi-Fi only.", scan_err ? "error " : "ok, ", scan_err); note(l, t); }
+    else {
+        static char t[140]; int heard = 0, g5 = 0, ch[24];
+        wifi_scan_stats(&heard, &g5);
+        if (!scan_err && heard) {
+            int nc = wifi_scan_heard(ch, 24); char cl[72] = "";
+            for (int i = 0; i < nc; i++) { char b[10]; snprintf(b, sizeof b, "%s%d", i ? "," : "", ch[i]); strncat(cl, b, sizeof cl - strlen(cl) - 1); }
+            snprintf(t, sizeof t, "Heard %d, %d on 5 GHz (ch %s).", heard, g5, cl[0] ? cl : "?");
+        } else snprintf(t, sizeof t, "No networks found (scan %s%d). 5 GHz Wi-Fi only.", scan_err ? "error " : "ok, ", scan_err);
+        note(l, t);
+    }
 }
 
 /* ---- Settings */
