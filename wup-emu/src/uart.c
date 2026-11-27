@@ -8,6 +8,8 @@
  * --uart-pty (or UART_PTY=1) bridges UART1 to a host pseudo-terminal, so host tools that expect a
  * USB serial adapter (e.g. wuptool.py) can talk to the emulated GamePad. */
 #define _DARWIN_C_SOURCE 1
+#define _XOPEN_SOURCE 600
+#define _DEFAULT_SOURCE 1
 #include "dev.h"
 #include <stdio.h>
 #include <stdlib.h>
