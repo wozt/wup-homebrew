@@ -21,7 +21,10 @@ static int wait_ready(u32 limit_us) {
     for (u32 t = time_us(); ; ) {
         if (spi_xfer(CS, &c, 1, NULL, 0, &st, 1)) return -1;
         if (!(st & 1)) return 0;
-        if (time_us() - t > limit_us) return -2;
+        u32 waited = time_us() - t;
+        if (waited > limit_us) return -2;
+        if (waited > 2000 && sched_current() >= 0) sched_sleep(1);   /* (an erase: 0.24 s for 4 KB, 0.7 s for 64 KB;
+                                                                        the other tasks run meanwhile) */
     }
 }
 

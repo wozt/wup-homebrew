@@ -292,7 +292,17 @@ int catalog_fetch(const catalog_pkg *p, void (*progress)(int)) {
     return r;
 }
 
-/* ---- zip: from ZIP_FILE, its central directory, then each entry in pieces (stored), or whole (deflated: small) */
+/* ---- zip: from ZIP_FILE, its central directory, then each entry in 4 KB pieces: stored ones as they are, deflated
+   ones inflated a piece at a time (uzlib, with its 32 KB window): a game's data of several MB needs no more memory
+   than a small file. (Pieces of 4 KB: Software Update's sink takes each slot's header sector as the first.) */
+#include "uzlib.h"
+static struct { uint32_t at, end; uint8_t buf[1024]; } zin;
+static int zin_more(TINF_DATA *d) {                   /* the compressed data, 1 KB at a time from the file */
+    uint32_t n = zin.end - zin.at < sizeof zin.buf ? zin.end - zin.at : sizeof zin.buf;
+    if (!n || fs_read(ZIP_FILE, zin.at, zin.buf, n) != (int)n) return -1;
+    zin.at += n; d->source = zin.buf + 1; d->source_limit = zin.buf + n;
+    return zin.buf[0];
+}
 static uint32_t le16(const uint8_t *p) { return p[0] | p[1] << 8; }
 static uint32_t le32(const uint8_t *p) { return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24; }
 static int zread(uint32_t at, void *d, uint32_t n) { return fs_read(ZIP_FILE, at, d, n) == (int)n ? 0 : -1; }
@@ -331,12 +341,24 @@ int catalog_unzip(const catalog_sink *sink, void *arg) {
                 r = zread(data + k, piece, m) ? CATALOG_EDAMAGED : sink->data(arg, piece, m);
                 if (catalog_idle) catalog_idle();
             }
-        } else if (method == 8) {                               /* deflated (small files) */
-            uint8_t *c = malloc(csize ? csize : 1), *u = malloc(usize ? usize : 1); unsigned got = usize;
-            if (!c || !u) r = CATALOG_ENOMEM;
-            else if (zread(data, c, csize) || wup_inflate(u, &got, c, csize) || got != usize) r = CATALOG_EDAMAGED;
-            else r = sink->data(arg, u, usize);
-            free(c); free(u);
+        } else if (method == 8) {                               /* deflated: a piece at a time */
+            static uint8_t window[32768];
+            static TINF_DATA d;
+            uzlib_init(); uzlib_uncompress_init(&d, window, sizeof window);
+            zin.at = data; zin.end = data + csize;
+            d.source = d.source_limit = NULL; d.source_read_cb = zin_more;
+            uint32_t done = 0;
+            while (!r && done < usize) {
+                d.dest = d.dest_start = piece;
+                d.dest_limit = piece + (usize - done < sizeof piece ? usize - done : sizeof piece);
+                int res = uzlib_uncompress(&d);
+                uint32_t n = (uint32_t)(d.dest - piece);
+                if (res < 0 || (!n && res != TINF_DONE)) { r = CATALOG_EDAMAGED; break; }
+                if (n) { r = sink->data(arg, piece, n); done += n; }
+                if (res == TINF_DONE) break;
+                if (catalog_idle) catalog_idle();
+            }
+            if (!r && done != usize) r = CATALOG_EDAMAGED;
         } else r = CATALOG_EDAMAGED;
         if (!r) r = sink->end(arg);
     }
@@ -372,6 +394,18 @@ int catalog_install(const catalog_pkg *p, void (*progress)(int)) {
     else {
         static const catalog_sink sink = { put_begin, put_data, put_end };
         r = catalog_unzip(&sink, x);
+        if (r) {                                       /* (cut short: what it had written goes again, folders too) */
+            fs_stream_close();
+            for (char *l = strtok(x->manifest, "\n"); l; l = strtok(NULL, "\n")) {
+                if (strncmp(l, "U: ", 3)) continue;
+                char path[136]; snprintf(path, sizeof path, "/%s", l + 3);
+                fs_remove(path);
+                for (char *e; (e = strrchr(path, '/')) && e != path; ) {   /* (its emptied folders, not /apps itself) */
+                    *e = 0;
+                    if (!strchr(path + 1, '/') || lfs_remove(&fs_lfs, path)) break;
+                }
+            }
+        }
         if (!r) {
             char dir[96], path[128], info[128];
             snprintf(dir, sizeof dir, "/.get/packages/%s/x", p->name); mkdirs(dir);

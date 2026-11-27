@@ -5,7 +5,8 @@ folder as it is (a web server over HTTPS, e.g. GitHub Pages); anyone's repositor
 
     python3 tools/mkrepo.py [--out OUT] [APP_FOLDER ...]     -> build/repo (default: the apps below)
 
-Each package's zip holds apps/<id>/<id>.wup (the Homebrew Menu's layout). wup-homebrew itself is not in it: Software
+Each package's zip holds apps/<id>/<id>.wup (the Homebrew Menu's layout), and the app.cfg's files = (data the app
+needs beside it, e.g. a game's data file) in the same folder. wup-homebrew itself is not in it: Software
 Update gets it from the project's GitHub Releases (tools/mkrelease.py)."""
 import datetime, hashlib, io, json, os, re, shutil, subprocess, sys, zipfile
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
@@ -58,7 +59,9 @@ def main():
         icon = os.path.join(d, c['icon'].split()[0]) if c.get('icon') else None
         packages.append(pkg(out, wid, c['name'], c.get('author', ''), c.get('version', '1.0'), c.get('category', 'tool'),
                             c.get('description', ''), c.get('licence', 'GPL-3.0-or-later'),
-                            [('apps/%s/%s.wup' % (wid, wid), built(d), zipfile.ZIP_STORED)], icon, c.get('url', HOME)))
+                            [('apps/%s/%s.wup' % (wid, wid), built(d), zipfile.ZIP_STORED)]
+                            + [('apps/%s/%s' % (wid, os.path.basename(f)), open(os.path.join(d, f), 'rb').read(), zipfile.ZIP_DEFLATED)
+                               for f in c.get('files', '').split()], icon, c.get('url', HOME)))
         print('  %-18s %s' % (wid, c.get('version')))
     json.dump({'packages': packages}, open(os.path.join(out, 'repo.json'), 'w'), indent=1)
     print('%s: %d packages' % (out, len(packages)))

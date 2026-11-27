@@ -55,6 +55,7 @@ Apps come to the GamePad through the App Store, from any repositories you add, o
 
 - [WUP Stream](https://github.com/ravensclawx/wup-stream): the GamePad as a wireless screen and controller for your
   computer: picture, sound, every input, the microphone and the camera.
+- [Doom](https://github.com/ravensclawx/wup-doom): the shareware episode, with the original OPL music.
 - Hello World: libwup's sample.
 
 [WUP Boy](https://github.com/ravensclawx/wup-boy) (Game Boy games) is archived for now: emulators are next.

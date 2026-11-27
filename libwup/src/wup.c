@@ -168,6 +168,9 @@ u8 *wup_screen8(void) {
         /* our own 8-bit screen (wup_ram.h), the UI layer switched to it the way the stock firmware ran its own (format
            0x00FF0008: 8-bit paletted, the stride in bytes) */
         memset((void *)WUP_FB8, 0, 864u * GFX_H); cache_clean((void *)WUP_FB8, 864u * GFX_H);
+        for (int i = 0; i < 256; i++) { LCD(0x100) = (u32)i; LCD(0x104) = 0xff000000u; }   /* (black first: the three
+                                                           registers take effect one by one, and a frame between them,
+                                                           shown through the palette as it was, came out white and garbled) */
         wup_vblank(); LCD(0x70) = 864; LCD(0x74) = WUP_FB8; LCD(0xb0) = 0x00ff0008u;
     }
     return (u8 *)LCD(0x74);

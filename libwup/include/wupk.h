@@ -8,7 +8,7 @@
 
 #define WUPK_PTR     0x00000080u
 #define WUPK_MAGIC   0x4b505557u                 /* "WUPK" */
-#define WUPK_VERSION 4
+#define WUPK_VERSION 5
 
 typedef struct wupk {
     uint32_t magic, version;
@@ -91,6 +91,8 @@ typedef struct wupk {
     void (*cam_enc_restart)(void);               /* a new start now (a receiver that lost a frame asks for it) */
     uint32_t (*cam_enc_starts)(void);            /* starts since opened */
     void (*cam_enc_close)(void);
+    /* (version 5) */
+    int (*flash_erase64k)(uint32_t addr);         /* a 64 KB block (aligned): ~0.7 s, where 16 erase4k take ~3.8 s */
 } wupk_t;
 
 #define WUPK (*(const wupk_t *const *)WUPK_PTR)

@@ -27,12 +27,38 @@ static int bd_read(const struct lfs_config *c, lfs_block_t b, lfs_off_t off, voi
     (void)c; u32 a = block_addr(b); if (a == 0xffffffffu) return LFS_ERR_IO;
     return WUPK->flash_read(a + off, buf, size) ? LFS_ERR_IO : 0;
 }
+/* Erasing is what writing costs on this flash: 0.24 s for each 4 KB block (the pad's Micron), so a 4 MB file took
+   minutes. So: a block that is blank already is not erased again (checked: ~1 ms); and where a block's whole 64 KB
+   holds nothing (used: every block the filesystem uses, from its own list, refreshed before each write and marked as
+   blocks are written), those 64 KB are erased at once (~0.7 s, a 16th of the time a block): the blocks after it are
+   then blank when their turn comes. A block that holds data is never erased that way. */
+#define MAX_BLOCKS 2048
+static u8 used[MAX_BLOCKS / 8];
+static int used_ok;
+static void mark(lfs_block_t b) { if (b < MAX_BLOCKS) used[b >> 3] |= (u8)(1u << (b & 7)); }
+static int is_used(lfs_block_t b) { return b >= MAX_BLOCKS || (used[b >> 3] >> (b & 7) & 1); }
+static int blank(u32 a) {
+    static u32 w[64];
+    for (u32 o = 0; o < 4096; o += sizeof w) {
+        if (WUPK->flash_read(a + o, w, sizeof w)) return 0;
+        for (unsigned k = 0; k < sizeof w / 4; k++) if (w[k] != 0xffffffffu) return 0;
+    }
+    return 1;
+}
 static int bd_prog(const struct lfs_config *c, lfs_block_t b, lfs_off_t off, const void *buf, lfs_size_t size) {
     (void)c; u32 a = block_addr(b); if (a == 0xffffffffu) return LFS_ERR_IO;
+    mark(b);
     return WUPK->flash_write(a + off, buf, size) ? LFS_ERR_IO : 0;
 }
 static int bd_erase(const struct lfs_config *c, lfs_block_t b) {
     (void)c; u32 a = block_addr(b); if (a == 0xffffffffu) return LFS_ERR_IO;
+    if (blank(a)) return 0;
+    lfs_block_t g = b & ~15u;                          /* (its 64 KB: the filesystem's places are 64 KB aligned) */
+    if (used_ok && WUPK->version >= 5 && (block_addr(g) & 0xffffu) == 0 && block_addr(g + 15) == block_addr(g) + 15 * 4096) {
+        int all_free = 1;
+        for (lfs_block_t k = g; k < g + 16 && all_free; k++) all_free = !is_used(k);
+        if (all_free) return WUPK->flash_erase64k(block_addr(g)) ? LFS_ERR_IO : 0;
+    }
     return WUPK->flash_erase4k(a) ? LFS_ERR_IO : 0;
 }
 static int bd_sync(const struct lfs_config *c) { (void)c; return 0; }
@@ -104,7 +130,14 @@ int fs_mount(int *formatted) {
     lfs_mkdir(&fs_lfs, "/apps");
     lfs_mkdir(&fs_lfs, "/save");
     mounted = 1;
+    fs__used_refresh();
     return 0;
+}
+static int used_cb(void *d, lfs_block_t b) { (void)d; mark(b); return 0; }
+void fs__used_refresh(void) {                         /* (before writing: what the filesystem uses now, bd_erase) */
+    if (!mounted || cfg.block_count > MAX_BLOCKS) { used_ok = 0; return; }
+    memset(used, 0, sizeof used);
+    used_ok = lfs_fs_traverse(&fs_lfs, used_cb, NULL) == 0;
 }
 #ifndef FS_NO_FORMAT
 int fs_erase(void (*tick)(void)) {                    /* an empty filesystem (the menu, when there is none to walk); mounted again
@@ -146,6 +179,7 @@ static u8 sbuf[256] __attribute__((aligned(4)));
 static struct lfs_file_config scfg = { .buffer = sbuf };
 int fs_stream_open(const char *path) {
     if (sf_open) { lfs_file_close(&fs_lfs, &sf); sf_open = 0; }
+    fs__used_refresh();
     int r = lfs_file_opencfg(&fs_lfs, &sf, path, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC, &scfg);
     sf_open = r == 0;
     return r;

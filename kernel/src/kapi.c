@@ -93,6 +93,7 @@ static const wupk_t table = {
     k_video_open, k_video_frame, k_video_need_key, k_video_waiting, k_video_close, k_us_since_vblank,
     CAM_FRAME, k_cam_open, cam_ready, cam_next, cam_convert, cam_stop,
     k_cam_enc_open, k_cam_enc_read, cam_enc_restart, k_cam_enc_starts, cam_enc_stop,
+    flash_erase64k,
 };
 
 void kapi_init(void) {
