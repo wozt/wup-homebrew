@@ -1,0 +1,15 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/licenses/
+opt/devkitpro/licenses/wut-tools/
+opt/devkitpro/licenses/wut-tools/COPYING
+opt/devkitpro/tools/
+opt/devkitpro/tools/bin/
+opt/devkitpro/tools/bin/elf2rpl
+opt/devkitpro/tools/bin/readrpl
+opt/devkitpro/tools/bin/rplexportgen
+opt/devkitpro/tools/bin/rplimportgen
+opt/devkitpro/tools/bin/udplogserver
+opt/devkitpro/tools/bin/wuhbtool
+

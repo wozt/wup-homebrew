@@ -1,0 +1,16 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/wii/
+opt/devkitpro/portlibs/wii/include/
+opt/devkitpro/portlibs/wii/include/GL/
+opt/devkitpro/portlibs/wii/include/GL/glu.h
+opt/devkitpro/portlibs/wii/lib/
+opt/devkitpro/portlibs/wii/lib/libGLU.a
+opt/devkitpro/portlibs/wii/lib/pkgconfig/
+opt/devkitpro/portlibs/wii/lib/pkgconfig/glu.pc
+opt/devkitpro/portlibs/wii/licenses/
+opt/devkitpro/portlibs/wii/licenses/wii-glu/
+opt/devkitpro/portlibs/wii/licenses/wii-glu/LICENSE
+

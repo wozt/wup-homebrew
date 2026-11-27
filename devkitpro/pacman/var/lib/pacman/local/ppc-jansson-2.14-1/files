@@ -1,0 +1,17 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/include/
+opt/devkitpro/portlibs/ppc/include/jansson.h
+opt/devkitpro/portlibs/ppc/include/jansson_config.h
+opt/devkitpro/portlibs/ppc/lib/
+opt/devkitpro/portlibs/ppc/lib/libjansson.a
+opt/devkitpro/portlibs/ppc/lib/libjansson.la
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/jansson.pc
+opt/devkitpro/portlibs/ppc/licenses/
+opt/devkitpro/portlibs/ppc/licenses/ppc-jansson/
+opt/devkitpro/portlibs/ppc/licenses/ppc-jansson/LICENSE
+

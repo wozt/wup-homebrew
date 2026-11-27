@@ -1,0 +1,16 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/include/
+opt/devkitpro/portlibs/ppc/include/lua5.1/
+opt/devkitpro/portlibs/ppc/include/lua5.1/lauxlib.h
+opt/devkitpro/portlibs/ppc/include/lua5.1/lua.h
+opt/devkitpro/portlibs/ppc/include/lua5.1/luaconf.h
+opt/devkitpro/portlibs/ppc/include/lua5.1/lualib.h
+opt/devkitpro/portlibs/ppc/lib/
+opt/devkitpro/portlibs/ppc/lib/liblua5.1.a
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/lua51.pc
+

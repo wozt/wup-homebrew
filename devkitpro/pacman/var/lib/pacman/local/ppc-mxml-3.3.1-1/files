@@ -1,0 +1,15 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/include/
+opt/devkitpro/portlibs/ppc/include/mxml.h
+opt/devkitpro/portlibs/ppc/lib/
+opt/devkitpro/portlibs/ppc/lib/libmxml.a
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/mxml.pc
+opt/devkitpro/portlibs/ppc/licenses/
+opt/devkitpro/portlibs/ppc/licenses/ppc-mxml/
+opt/devkitpro/portlibs/ppc/licenses/ppc-mxml/LICENSE
+

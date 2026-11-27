@@ -1,0 +1,16 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/gamecube/
+opt/devkitpro/portlibs/gamecube/include/
+opt/devkitpro/portlibs/gamecube/include/GL/
+opt/devkitpro/portlibs/gamecube/include/GL/glu.h
+opt/devkitpro/portlibs/gamecube/lib/
+opt/devkitpro/portlibs/gamecube/lib/libGLU.a
+opt/devkitpro/portlibs/gamecube/lib/pkgconfig/
+opt/devkitpro/portlibs/gamecube/lib/pkgconfig/glu.pc
+opt/devkitpro/portlibs/gamecube/licenses/
+opt/devkitpro/portlibs/gamecube/licenses/gamecube-glu/
+opt/devkitpro/portlibs/gamecube/licenses/gamecube-glu/LICENSE
+

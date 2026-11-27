@@ -1,0 +1,16 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/wii/
+opt/devkitpro/portlibs/wii/include/
+opt/devkitpro/portlibs/wii/include/physfs.h
+opt/devkitpro/portlibs/wii/lib/
+opt/devkitpro/portlibs/wii/lib/cmake/
+opt/devkitpro/portlibs/wii/lib/cmake/PhysFS/
+opt/devkitpro/portlibs/wii/lib/cmake/PhysFS/PhysFSConfig-release.cmake
+opt/devkitpro/portlibs/wii/lib/cmake/PhysFS/PhysFSConfig.cmake
+opt/devkitpro/portlibs/wii/lib/libphysfs.a
+opt/devkitpro/portlibs/wii/lib/pkgconfig/
+opt/devkitpro/portlibs/wii/lib/pkgconfig/physfs.pc
+

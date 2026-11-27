@@ -1,0 +1,11 @@
+prefix=/opt/devkitpro/portlibs/ppc
+exec_prefix=${prefix}
+includedir=/opt/devkitpro/portlibs/ppc/include
+libdir=/opt/devkitpro/portlibs/ppc/lib
+
+Name: Yaml-cpp
+Description: A YAML parser and emitter for C++
+Version: 0.8.0
+Requires:
+Libs: -L${libdir} -lyaml-cpp
+Cflags: -I${includedir}

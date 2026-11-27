@@ -1,0 +1,12 @@
+prefix=/opt/devkitpro/portlibs/ppc
+exec_prefix=/opt/devkitpro/portlibs/ppc
+libdir=/opt/devkitpro/portlibs/ppc/lib
+includedir=/opt/devkitpro/portlibs/ppc/include
+
+Name: harfbuzz subsetter
+Description: HarfBuzz font subsetter
+Version: 8.2.0
+
+Requires: harfbuzz = 8.2.0
+Libs: -L${libdir} -lharfbuzz-subset
+Cflags: -I${includedir}/harfbuzz

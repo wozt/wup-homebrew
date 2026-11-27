@@ -1,0 +1,36 @@
+%NAME%
+dkp-toolchain-vars
+
+%VERSION%
+1.0.4-1
+
+%BASE%
+dkp-toolchain-vars
+
+%DESC%
+helper scripts to set variables for devkitPro toolchains
+
+%URL%
+http://devkitpro.org/
+
+%ARCH%
+any
+
+%BUILDDATE%
+1717052370
+
+%INSTALLDATE%
+1729710619
+
+%PACKAGER%
+Dave Murphy <davem@devkitpro.org>
+
+%SIZE%
+4805
+
+%VALIDATION%
+pgp
+
+%CONFLICTS%
+devkitpro-pkgbuild-helpers
+

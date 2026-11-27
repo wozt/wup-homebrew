@@ -1,0 +1,16 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/include/
+opt/devkitpro/portlibs/ppc/include/mad.h
+opt/devkitpro/portlibs/ppc/lib/
+opt/devkitpro/portlibs/ppc/lib/libmad.a
+opt/devkitpro/portlibs/ppc/lib/libmad.la
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/mad.pc
+opt/devkitpro/portlibs/ppc/licenses/
+opt/devkitpro/portlibs/ppc/licenses/ppc-libmad/
+opt/devkitpro/portlibs/ppc/licenses/ppc-libmad/COPYRIGHT
+

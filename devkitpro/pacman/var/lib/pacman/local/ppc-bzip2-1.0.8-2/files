@@ -1,0 +1,13 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/include/
+opt/devkitpro/portlibs/ppc/include/bzlib.h
+opt/devkitpro/portlibs/ppc/lib/
+opt/devkitpro/portlibs/ppc/lib/libbz2.a
+opt/devkitpro/portlibs/ppc/licenses/
+opt/devkitpro/portlibs/ppc/licenses/ppc-bzip2/
+opt/devkitpro/portlibs/ppc/licenses/ppc-bzip2/LICENSE
+

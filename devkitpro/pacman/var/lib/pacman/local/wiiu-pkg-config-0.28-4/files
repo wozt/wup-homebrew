@@ -1,0 +1,8 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/wiiu/
+opt/devkitpro/portlibs/wiiu/bin/
+opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-pkg-config
+

@@ -1,0 +1,44 @@
+%NAME%
+wiiu-curl
+
+%VERSION%
+8.7.1-2
+
+%BASE%
+wiiu-curl
+
+%DESC%
+Library for transferring data with URLs
+
+%URL%
+https://curl.se/
+
+%ARCH%
+any
+
+%BUILDDATE%
+1714829607
+
+%INSTALLDATE%
+1731763981
+
+%PACKAGER%
+Dave Murphy <davem@devkitpro.org>
+
+%SIZE%
+1525850
+
+%GROUPS%
+wiiu-portlibs
+
+%LICENSE%
+The curl license
+
+%VALIDATION%
+pgp
+
+%DEPENDS%
+wut
+ppc-zlib
+wiiu-mbedtls
+

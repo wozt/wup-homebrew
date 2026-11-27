@@ -1,0 +1,9 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/cmake/
+opt/devkitpro/cmake/devkitPPC.cmake
+opt/devkitpro/devkitPPC/
+opt/devkitpro/devkitPPC/bin/
+opt/devkitpro/devkitPPC/bin/powerpc-eabi-cmake
+

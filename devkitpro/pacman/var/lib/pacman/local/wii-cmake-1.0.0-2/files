@@ -1,0 +1,12 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/cmake/
+opt/devkitpro/cmake/Platform/
+opt/devkitpro/cmake/Platform/NintendoWii.cmake
+opt/devkitpro/cmake/Wii.cmake
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/wii/
+opt/devkitpro/portlibs/wii/bin/
+opt/devkitpro/portlibs/wii/bin/powerpc-eabi-cmake
+

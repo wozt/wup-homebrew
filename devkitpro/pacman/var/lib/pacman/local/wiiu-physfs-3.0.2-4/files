@@ -1,0 +1,12 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/wiiu/
+opt/devkitpro/portlibs/wiiu/include/
+opt/devkitpro/portlibs/wiiu/include/physfs.h
+opt/devkitpro/portlibs/wiiu/lib/
+opt/devkitpro/portlibs/wiiu/lib/libphysfs.a
+opt/devkitpro/portlibs/wiiu/lib/pkgconfig/
+opt/devkitpro/portlibs/wiiu/lib/pkgconfig/physfs.pc
+

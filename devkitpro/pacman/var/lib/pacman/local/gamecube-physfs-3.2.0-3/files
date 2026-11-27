@@ -1,0 +1,16 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/gamecube/
+opt/devkitpro/portlibs/gamecube/include/
+opt/devkitpro/portlibs/gamecube/include/physfs.h
+opt/devkitpro/portlibs/gamecube/lib/
+opt/devkitpro/portlibs/gamecube/lib/cmake/
+opt/devkitpro/portlibs/gamecube/lib/cmake/PhysFS/
+opt/devkitpro/portlibs/gamecube/lib/cmake/PhysFS/PhysFSConfig-release.cmake
+opt/devkitpro/portlibs/gamecube/lib/cmake/PhysFS/PhysFSConfig.cmake
+opt/devkitpro/portlibs/gamecube/lib/libphysfs.a
+opt/devkitpro/portlibs/gamecube/lib/pkgconfig/
+opt/devkitpro/portlibs/gamecube/lib/pkgconfig/physfs.pc
+

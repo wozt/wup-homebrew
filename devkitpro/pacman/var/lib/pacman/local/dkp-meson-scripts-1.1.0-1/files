@@ -1,0 +1,6 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/meson-cross.sh
+opt/devkitpro/meson-toolchain.sh
+

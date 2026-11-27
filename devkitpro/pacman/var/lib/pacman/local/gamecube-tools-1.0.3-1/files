@@ -1,0 +1,12 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/licenses/
+opt/devkitpro/licenses/gamecube-tools/
+opt/devkitpro/licenses/gamecube-tools/COPYING
+opt/devkitpro/tools/
+opt/devkitpro/tools/bin/
+opt/devkitpro/tools/bin/elf2dol
+opt/devkitpro/tools/bin/gcdsptool
+opt/devkitpro/tools/bin/gxtexconv
+

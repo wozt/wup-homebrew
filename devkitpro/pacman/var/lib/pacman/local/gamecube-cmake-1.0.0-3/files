@@ -1,0 +1,12 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/cmake/
+opt/devkitpro/cmake/GameCube.cmake
+opt/devkitpro/cmake/Platform/
+opt/devkitpro/cmake/Platform/NintendoGameCube.cmake
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/gamecube/
+opt/devkitpro/portlibs/gamecube/bin/
+opt/devkitpro/portlibs/gamecube/bin/powerpc-eabi-cmake
+

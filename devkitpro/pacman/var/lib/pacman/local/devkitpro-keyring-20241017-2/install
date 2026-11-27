@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+post_upgrade() {
+
+  if  command -v dkp-pacman-key &> /dev/null ;then
+    dkp-pacman-key --populate devkitpro
+  elif  command -v pacman-key &> /dev/null ; then
+    pacman-key --populate devkitpro
+  fi
+
+}
+
+post_install() {
+  post_upgrade
+}

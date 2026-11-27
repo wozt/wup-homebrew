@@ -1,0 +1,9 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/devkitPPC/
+opt/devkitpro/devkitPPC/base_rules
+opt/devkitpro/devkitPPC/base_tools
+opt/devkitpro/devkitPPC/gamecube_rules
+opt/devkitpro/devkitPPC/wii_rules
+

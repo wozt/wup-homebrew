@@ -1,0 +1,13 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/libogc/
+opt/devkitpro/libogc/include/
+opt/devkitpro/libogc/include/dvm.h
+opt/devkitpro/libogc/include/fat.h
+opt/devkitpro/libogc/lib/
+opt/devkitpro/libogc/lib/cube/
+opt/devkitpro/libogc/lib/cube/libfat.a
+opt/devkitpro/libogc/lib/wii/
+opt/devkitpro/libogc/lib/wii/libfat.a
+

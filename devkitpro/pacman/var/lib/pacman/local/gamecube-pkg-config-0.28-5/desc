@@ -1,0 +1,36 @@
+%NAME%
+gamecube-pkg-config
+
+%VERSION%
+0.28-5
+
+%BASE%
+gamecube-pkg-config
+
+%DESC%
+pkg-config wrapper (for Nintendo Wii homebrew development)
+
+%URL%
+http://devkitpro.org/
+
+%ARCH%
+any
+
+%BUILDDATE%
+1592786233
+
+%INSTALLDATE%
+1731763959
+
+%PACKAGER%
+Dave Murphy <davem@devkitpro.org>
+
+%SIZE%
+25600
+
+%GROUPS%
+gamecube-dev
+
+%VALIDATION%
+pgp
+

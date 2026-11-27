@@ -1,0 +1,14 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/gamecube/
+opt/devkitpro/portlibs/gamecube/include/
+opt/devkitpro/portlibs/gamecube/include/SDL/
+opt/devkitpro/portlibs/gamecube/include/SDL/SDL_mixer.h
+opt/devkitpro/portlibs/gamecube/lib/
+opt/devkitpro/portlibs/gamecube/lib/libSDL_mixer.a
+opt/devkitpro/portlibs/gamecube/lib/libSDL_mixer.la
+opt/devkitpro/portlibs/gamecube/lib/pkgconfig/
+opt/devkitpro/portlibs/gamecube/lib/pkgconfig/SDL_mixer.pc
+

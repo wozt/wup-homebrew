@@ -1,0 +1,17 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/include/
+opt/devkitpro/portlibs/ppc/include/libmodplug/
+opt/devkitpro/portlibs/ppc/include/libmodplug/it_defs.h
+opt/devkitpro/portlibs/ppc/include/libmodplug/modplug.h
+opt/devkitpro/portlibs/ppc/include/libmodplug/sndfile.h
+opt/devkitpro/portlibs/ppc/include/libmodplug/stdafx.h
+opt/devkitpro/portlibs/ppc/lib/
+opt/devkitpro/portlibs/ppc/lib/libmodplug.a
+opt/devkitpro/portlibs/ppc/lib/libmodplug.la
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/libmodplug.pc
+

@@ -1,0 +1,16 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/include/
+opt/devkitpro/portlibs/ppc/include/zconf.h
+opt/devkitpro/portlibs/ppc/include/zlib.h
+opt/devkitpro/portlibs/ppc/lib/
+opt/devkitpro/portlibs/ppc/lib/libz.a
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/zlib.pc
+opt/devkitpro/portlibs/ppc/licenses/
+opt/devkitpro/portlibs/ppc/licenses/ppc-zlib/
+opt/devkitpro/portlibs/ppc/licenses/ppc-zlib/LICENSE
+

@@ -1,0 +1,16 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/bin/
+opt/devkitpro/portlibs/ppc/include/
+opt/devkitpro/portlibs/ppc/include/lz4.h
+opt/devkitpro/portlibs/ppc/include/lz4frame.h
+opt/devkitpro/portlibs/ppc/include/lz4frame_static.h
+opt/devkitpro/portlibs/ppc/include/lz4hc.h
+opt/devkitpro/portlibs/ppc/lib/
+opt/devkitpro/portlibs/ppc/lib/liblz4.a
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/
+opt/devkitpro/portlibs/ppc/lib/pkgconfig/liblz4.pc
+

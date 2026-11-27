@@ -1,0 +1,36 @@
+%NAME%
+dkp-meson-scripts
+
+%VERSION%
+1.1.0-1
+
+%BASE%
+dkp-meson-scripts
+
+%DESC%
+makepkg helpers for devkitPro portlibs
+
+%URL%
+http://devkitpro.org/
+
+%ARCH%
+any
+
+%BUILDDATE%
+1706476481
+
+%INSTALLDATE%
+1729710619
+
+%PACKAGER%
+Dave Murphy <davem@devkitpro.org>
+
+%SIZE%
+2575
+
+%VALIDATION%
+pgp
+
+%CONFLICTS%
+devkitpro-pkgbuild-helpers
+

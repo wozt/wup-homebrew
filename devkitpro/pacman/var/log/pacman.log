@@ -1,0 +1,152 @@
+[2021-06-04T22:59:44+0100] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -U --noconfirm --arch i686 --root /home/davem/projects/devkitpro/deb-packages/devkitpro-pacman.i686 devkitpro-keyring-20180316-1-any.pkg.tar.xz'
+[2021-06-04T22:59:44+0100] [ALPM] transaction started
+[2021-06-04T22:59:44+0100] [ALPM] installed devkitpro-keyring (20180316-1)
+[2021-06-04T22:59:44+0100] [ALPM-SCRIPTLET] call to execv failed (No such file or directory)
+[2021-06-04T22:59:44+0100] [ALPM] transaction completed
+[2021-06-04T23:01:28+0100] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -U --noconfirm --arch i686 --root /home/davem/projects/devkitpro/deb-packages/devkitpro-pacman.i686 pacman-5.2.2-5-i686.pkg.tar.xz'
+[2021-06-04T23:01:28+0100] [ALPM] transaction started
+[2021-06-04T23:01:28+0100] [ALPM] installed pacman (5.2.2-5)
+[2021-06-04T23:01:28+0100] [ALPM] transaction completed
+[2022-02-10T02:26:58+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -r devkitpro-pacman_6.0.1-1_amd64/ --noscriptlet --arch x86_64 --config ./pacman.conf -U /home/davem/packages/dkp-linux/x86_64/pacman-6.0.1-7-x86_64.pkg.tar.xz'
+[2022-02-10T02:27:08+0000] [ALPM] transaction started
+[2022-02-10T02:27:09+0000] [ALPM] upgraded pacman (5.2.2-5 -> 6.0.1-7)
+[2022-02-10T02:27:09+0000] [ALPM] transaction completed
+[2022-02-10T02:27:29+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -r devkitpro-pacman_6.0.1-1_amd64/ --noscriptlet --arch x86_64 --config ./pacman.conf -Syy'
+[2022-02-10T02:27:29+0000] [PACMAN] synchronizing package lists
+[2022-02-11T13:53:06+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -r devkitpro-pacman_6.0.1-2_amd64 --noscriptlet --arch x86_64 --config ./pacman.conf -Sy pacman'
+[2022-02-11T13:53:06+0000] [PACMAN] synchronizing package lists
+[2022-02-11T13:53:16+0000] [ALPM] transaction started
+[2022-02-11T13:53:17+0000] [ALPM] reinstalled pacman (6.0.1-7)
+[2022-02-11T13:53:17+0000] [ALPM] transaction completed
+[2024-10-23T19:10:14+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -Syy'
+[2024-10-23T19:10:14+0000] [PACMAN] synchronizing package lists
+[2024-10-23T19:10:15+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -Syyu --noconfirm'
+[2024-10-23T19:10:15+0000] [PACMAN] synchronizing package lists
+[2024-10-23T19:10:16+0000] [PACMAN] starting full system upgrade
+[2024-10-23T19:10:18+0000] [ALPM] transaction started
+[2024-10-23T19:10:18+0000] [ALPM] upgraded devkitpro-keyring (20180316-1 -> 20241017-2)
+[2024-10-23T19:10:18+0000] [ALPM-SCRIPTLET] /usr/bin/dkp-pacman-key
+[2024-10-23T19:10:18+0000] [ALPM-SCRIPTLET] ==> Appending keys from devkitpro.gpg...
+[2024-10-23T19:10:18+0000] [ALPM-SCRIPTLET] ==> Updating trust database...
+[2024-10-23T19:10:18+0000] [ALPM-SCRIPTLET] gpg: no need for a trustdb check
+[2024-10-23T19:10:19+0000] [ALPM] upgraded pacman (6.0.1-7 -> 6.0.2-6)
+[2024-10-23T19:10:19+0000] [ALPM] transaction completed
+[2024-10-23T19:10:19+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -S --needed --noconfirm dkp-toolchain-vars dkp-meson-scripts'
+[2024-10-23T19:10:19+0000] [ALPM] transaction started
+[2024-10-23T19:10:19+0000] [ALPM] installed dkp-toolchain-vars (1.0.4-1)
+[2024-10-23T19:10:19+0000] [ALPM] installed dkp-meson-scripts (1.1.0-1)
+[2024-10-23T19:10:19+0000] [ALPM] transaction completed
+[2024-10-23T19:10:19+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -Scc'
+[2024-11-16T13:32:28+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -Syyu --noconfirm gamecube-dev wii-dev wiiu-dev'
+[2024-11-16T13:32:28+0000] [PACMAN] synchronizing package lists
+[2024-11-16T13:32:29+0000] [PACMAN] starting full system upgrade
+[2024-11-16T13:32:39+0000] [ALPM] transaction started
+[2024-11-16T13:32:39+0000] [ALPM] installed dkp-cmake-common-utils (1.5.2-1)
+[2024-11-16T13:32:39+0000] [ALPM] installed catnip (0.1.0-1)
+[2024-11-16T13:32:39+0000] [ALPM] installed devkitppc-cmake (1.1.3-1)
+[2024-11-16T13:32:39+0000] [ALPM] installed general-tools (1.4.4-1)
+[2024-11-16T13:32:39+0000] [ALPM] installed devkitppc-rules (1.2.1-1)
+[2024-11-16T13:32:39+0000] [ALPM] installed gamecube-tools (1.0.3-1)
+[2024-11-16T13:32:39+0000] [ALPM] installed ogc-cmake (1.2.1-1)
+[2024-11-16T13:32:39+0000] [ALPM] installed gamecube-pkg-config (0.28-5)
+[2024-11-16T13:32:39+0000] [ALPM] installed gamecube-cmake (1.0.0-3)
+[2024-11-16T13:32:41+0000] [ALPM] installed devkitPPC (r46.1-1)
+[2024-11-16T13:32:41+0000] [ALPM] installed libogc (2.9.0-1)
+[2024-11-16T13:32:41+0000] [ALPM] installed gamecube-examples (20210525-1)
+[2024-11-16T13:32:41+0000] [ALPM] installed libfat-ogc (2.0.0-7)
+[2024-11-16T13:32:41+0000] [ALPM] installed libgxflux (20230423-3)
+[2024-11-16T13:32:41+0000] [ALPM] installed ppc-pkg-config (0.28-5)
+[2024-11-16T13:32:41+0000] [ALPM] installed devkit-env (1.0.1-2)
+[2024-11-16T13:32:41+0000] [ALPM-SCRIPTLET] To use the toolchains some variables need to be set in your shell. A file
+[2024-11-16T13:32:41+0000] [ALPM-SCRIPTLET] has been provided for POSIX compatible shells (bash, zsh, ...) which will
+[2024-11-16T13:32:41+0000] [ALPM-SCRIPTLET] set the necessary variables after you logout and login again.
+[2024-11-16T13:32:41+0000] [ALPM-SCRIPTLET] 
+[2024-11-16T13:32:41+0000] [ALPM-SCRIPTLET] To use the toolchains right away, use
+[2024-11-16T13:32:41+0000] [ALPM-SCRIPTLET]   $ source /etc/profile.d/devkit-env.sh
+[2024-11-16T13:32:42+0000] [ALPM] installed devkitPPC-gdb (14.1-2)
+[2024-11-16T13:32:42+0000] [ALPM] installed wii-pkg-config (0.28-5)
+[2024-11-16T13:32:42+0000] [ALPM] installed wii-cmake (1.0.0-2)
+[2024-11-16T13:32:42+0000] [ALPM] installed wii-examples (20241004-1)
+[2024-11-16T13:32:42+0000] [ALPM] installed wiiload (0.5.3-1)
+[2024-11-16T13:32:42+0000] [ALPM] installed wut-tools (1.3.5-1)
+[2024-11-16T13:32:42+0000] [ALPM] installed wiiu-pkg-config (0.28-4)
+[2024-11-16T13:32:42+0000] [ALPM] installed wiiu-cmake (1.3.1-1)
+[2024-11-16T13:32:42+0000] [ALPM] installed wut (1.7.0-1)
+[2024-11-16T13:32:42+0000] [ALPM] transaction completed
+[2024-11-16T13:32:42+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -S --needed --noconfirm ppc-portlibs gamecube-portlibs wii-portlibs wiiu-portlibs'
+[2024-11-16T13:32:59+0000] [ALPM] transaction started
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-box2d (2.4.1-2)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-bzip2 (1.0.8-2)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-libogg (1.3.4-1)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-flac (1.4.3-2)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-zlib (1.3-1)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-libpng (1.6.39-3)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-freetype (2.13.2-3)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-giflib (5.1.4-2)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-glm (0.9.9.2-3)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-harfbuzz (8.2.0-2)
+[2024-11-16T13:32:59+0000] [ALPM] installed ppc-jansson (2.14-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-jsoncpp (1.9.5-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libexpat (2.5.0-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libfribidi (1.0.12-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libjpeg-turbo (2.1.2-4)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libgd (2.3.3-2)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-liblua51 (5.1.5-2)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libmad (0.15.1b-2)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libmodplug (0.8.9.0-3)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libopus (1.3-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libvorbis (1.3.7-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libtheora (1.2.0alpha1-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libvorbisidec (1.2.1-2)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-libzip (1.10.1-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-lz4 (1.9.3-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-mpg123 (1.31.3-4)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-mxml (3.3.1-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-ode (0.16.4-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-opusfile (0.11-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-tinyxml2 (10.0.0-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed ppc-yaml_cpp (0.8.0-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-opengx (0.12.0-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-glu (9.0.3-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-freeglut (3.6.0-4)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-physfs (3.2.0-3)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl (1.2.15-15)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl2 (2.28.5-14)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl2_gfx (1.0.4-4)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl2_image (2.8.2-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl2_mixer (2.6.3-2)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl2_ttf (2.22.0-2)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl_gfx (2.0.25-3)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl_image (1.2.12-4)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl_mixer (1.2.12-2)
+[2024-11-16T13:33:00+0000] [ALPM] installed gamecube-sdl_ttf (2.0.11-4)
+[2024-11-16T13:33:00+0000] [ALPM] installed wii-opengx (0.12.0-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed wii-glu (9.0.3-1)
+[2024-11-16T13:33:00+0000] [ALPM] installed wii-freeglut (3.6.0-4)
+[2024-11-16T13:33:00+0000] [ALPM] installed wii-physfs (3.2.0-3)
+[2024-11-16T13:33:00+0000] [ALPM] installed wii-sdl (1.2.15-16)
+[2024-11-16T13:33:00+0000] [ALPM] installed wii-sdl2 (2.28.5-14)
+[2024-11-16T13:33:01+0000] [ALPM] installed wii-sdl2_gfx (1.0.4-3)
+[2024-11-16T13:33:01+0000] [ALPM] installed wii-sdl2_image (2.8.2-1)
+[2024-11-16T13:33:01+0000] [ALPM] installed wii-sdl2_mixer (2.6.3-2)
+[2024-11-16T13:33:01+0000] [ALPM] installed wii-sdl2_ttf (2.22.0-2)
+[2024-11-16T13:33:01+0000] [ALPM] installed wii-sdl_gfx (2.0.27-1)
+[2024-11-16T13:33:01+0000] [ALPM] installed wii-sdl_image (1.2.12-5)
+[2024-11-16T13:33:01+0000] [ALPM] installed wii-sdl_mixer (1.2.12-10)
+[2024-11-16T13:33:01+0000] [ALPM] installed wii-sdl_ttf (2.0.11-5)
+[2024-11-16T13:33:01+0000] [ALPM] installed wiiu-mbedtls (2.28.8-1)
+[2024-11-16T13:33:01+0000] [ALPM] installed wiiu-curl (8.7.1-2)
+[2024-11-16T13:33:01+0000] [ALPM] installed wiiu-physfs (3.0.2-4)
+[2024-11-16T13:33:01+0000] [ALPM] installed wiiu-sdl2 (2.28.5-2)
+[2024-11-16T13:33:01+0000] [ALPM] installed wiiu-sdl2_gfx (1.0.4-1)
+[2024-11-16T13:33:01+0000] [ALPM] installed wiiu-sdl2_image (2.6.2-2)
+[2024-11-16T13:33:01+0000] [ALPM] installed wiiu-sdl2_mixer (2.6.3-3)
+[2024-11-16T13:33:01+0000] [ALPM] installed wiiu-sdl2_ttf (2.20.2-1)
+[2024-11-16T13:33:01+0000] [ALPM] transaction completed
+[2024-11-16T13:33:01+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -S --needed --noconfirm devkitARM'
+[2024-11-16T13:33:10+0000] [ALPM] transaction started
+[2024-11-16T13:33:10+0000] [ALPM] installed devkitarm-rules (1.6.0-4)
+[2024-11-16T13:33:10+0000] [ALPM] installed devkitarm-crtls (1.2.6-1)
+[2024-11-16T13:33:12+0000] [ALPM] installed devkitARM (r65-1)
+[2024-11-16T13:33:12+0000] [ALPM] transaction completed
+[2024-11-16T13:33:12+0000] [PACMAN] Running '/opt/devkitpro/pacman/bin/pacman -Scc'

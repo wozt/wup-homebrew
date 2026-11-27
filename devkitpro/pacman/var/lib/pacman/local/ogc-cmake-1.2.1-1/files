@@ -1,0 +1,8 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/cmake/
+opt/devkitpro/cmake/Platform/
+opt/devkitpro/cmake/Platform/libogc.cmake
+opt/devkitpro/cmake/ogc-common.cmake
+

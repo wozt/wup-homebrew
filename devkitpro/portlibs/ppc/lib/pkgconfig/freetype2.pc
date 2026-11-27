@@ -1,0 +1,14 @@
+prefix=/opt/devkitpro/portlibs/ppc
+exec_prefix=/opt/devkitpro/portlibs/ppc
+libdir=/opt/devkitpro/portlibs/ppc/lib
+includedir=/opt/devkitpro/portlibs/ppc/include
+
+Name: FreeType 2
+URL: https://freetype.org
+Description: A free, high-quality, and portable font engine.
+Version: 26.1.20
+Requires: zlib, libpng
+Requires.private: 
+Libs: -L/opt/devkitpro/portlibs/ppc/lib -lfreetype -lbz2
+Libs.private: 
+Cflags: -I${includedir}/freetype2

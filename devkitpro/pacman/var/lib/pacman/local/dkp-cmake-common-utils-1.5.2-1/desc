@@ -1,0 +1,36 @@
+%NAME%
+dkp-cmake-common-utils
+
+%VERSION%
+1.5.2-1
+
+%BASE%
+dkp-cmake-common-utils
+
+%DESC%
+Common utilities and infrastructure for devkitPro CMake
+
+%URL%
+http://devkitpro.org/
+
+%ARCH%
+any
+
+%BUILDDATE%
+1699731719
+
+%INSTALLDATE%
+1731763959
+
+%PACKAGER%
+fincs <fincs@devkitpro.org>
+
+%SIZE%
+13828
+
+%REASON%
+1
+
+%VALIDATION%
+pgp
+

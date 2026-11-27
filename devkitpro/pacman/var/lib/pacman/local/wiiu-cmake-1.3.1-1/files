@@ -1,0 +1,12 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/cmake/
+opt/devkitpro/cmake/Platform/
+opt/devkitpro/cmake/Platform/CafeOS.cmake
+opt/devkitpro/cmake/WiiU.cmake
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/wiiu/
+opt/devkitpro/portlibs/wiiu/bin/
+opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake
+

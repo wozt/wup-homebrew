@@ -1,0 +1,17 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/wii/
+opt/devkitpro/portlibs/wii/include/
+opt/devkitpro/portlibs/wii/include/SDL2/
+opt/devkitpro/portlibs/wii/include/SDL2/SDL2_framerate.h
+opt/devkitpro/portlibs/wii/include/SDL2/SDL2_gfxPrimitives.h
+opt/devkitpro/portlibs/wii/include/SDL2/SDL2_imageFilter.h
+opt/devkitpro/portlibs/wii/include/SDL2/SDL2_rotozoom.h
+opt/devkitpro/portlibs/wii/lib/
+opt/devkitpro/portlibs/wii/lib/libSDL2_gfx.a
+opt/devkitpro/portlibs/wii/lib/libSDL2_gfx.la
+opt/devkitpro/portlibs/wii/lib/pkgconfig/
+opt/devkitpro/portlibs/wii/lib/pkgconfig/SDL2_gfx.pc
+

@@ -1,0 +1,8 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/gamecube/
+opt/devkitpro/portlibs/gamecube/bin/
+opt/devkitpro/portlibs/gamecube/bin/powerpc-eabi-pkg-config
+

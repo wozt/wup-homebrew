@@ -1,0 +1,8 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/ppc/
+opt/devkitpro/portlibs/ppc/bin/
+opt/devkitpro/portlibs/ppc/bin/powerpc-eabi-pkg-config
+

@@ -1,0 +1,14 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/portlibs/
+opt/devkitpro/portlibs/wii/
+opt/devkitpro/portlibs/wii/include/
+opt/devkitpro/portlibs/wii/include/SDL/
+opt/devkitpro/portlibs/wii/include/SDL/SDL_image.h
+opt/devkitpro/portlibs/wii/lib/
+opt/devkitpro/portlibs/wii/lib/libSDL_image.a
+opt/devkitpro/portlibs/wii/lib/libSDL_image.la
+opt/devkitpro/portlibs/wii/lib/pkgconfig/
+opt/devkitpro/portlibs/wii/lib/pkgconfig/SDL_image.pc
+

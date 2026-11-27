@@ -12,9 +12,15 @@
 #define LWIP_POSIX_SOCKETS_IO_NAMES 0
 #define LWIP_TCPIP_CORE_LOCKING     1    /* socket calls run the stack themselves under its lock: no hand-over per call */
 #define LWIP_SOCKET_OFFSET          3    /* descriptors 3..: files are 32.. (src/sys.c) */
+#ifdef WUP_NET_NETCONN
+#define MEMP_NUM_NETCONN            WUP_NET_NETCONN
+#else
 #define MEMP_NUM_NETCONN            12
+#endif
 #ifdef WUP_NET_UDP_QUEUE
 #define MEMP_NUM_NETBUF             (WUP_NET_UDP_QUEUE + 16)
+#elif defined(WUP_NET_NETBUF)
+#define MEMP_NUM_NETBUF             WUP_NET_NETBUF
 #else
 #define MEMP_NUM_NETBUF             48
 #endif
@@ -93,10 +99,22 @@
 #define MEMP_NUM_PBUF               32
 #define PBUF_POOL_BUFSIZE           1536
 #define MEMP_NUM_UDP_PCB            12
+#ifdef WUP_NET_TCP_PCB
+#define MEMP_NUM_TCP_PCB            WUP_NET_TCP_PCB
+#else
 #define MEMP_NUM_TCP_PCB            16   /* the menu: FTP's 3 sessions (control + data), Netloader, debug, TIME_WAIT */
+#endif
+#ifdef WUP_NET_TCP_PCB_LISTEN
+#define MEMP_NUM_TCP_PCB_LISTEN     WUP_NET_TCP_PCB_LISTEN
+#else
 #define MEMP_NUM_TCP_PCB_LISTEN     6    /* the menu: FTP, its 3 passive data ports, Netloader, debug */
+#endif
 #define SO_REUSE                    1    /* a data port can be listened on again while its last connection lingers */
+#ifdef WUP_NET_TCP_SEG
+#define MEMP_NUM_TCP_SEG            WUP_NET_TCP_SEG
+#else
 #define MEMP_NUM_TCP_SEG            48
+#endif
 #define MEMP_NUM_SYS_TIMEOUT        (LWIP_NUM_SYS_TIMEOUT_INTERNAL + 3)
 /* SNTP (lwIP's client: wup_net_time(), src/net.c; the menu's clock and any app with net = yes). Three servers, asked
    in turn; an unanswered request is asked again after 3 s, not lwIP's 15 s (the App Store gave up before the second
@@ -111,7 +129,11 @@
 #define SNTP_SET_SYSTEM_TIME_US(sec, us) wup__sntp_time((sec), (us))
 void wup__sntp_time(unsigned sec, unsigned us);
 #define TCP_MSS                     1460
+#ifdef WUP_NET_TCP_WND_MSS
+#define TCP_WND                     (WUP_NET_TCP_WND_MSS * TCP_MSS)
+#else
 #define TCP_WND                     (12 * TCP_MSS)
+#endif
 #define TCP_SND_BUF                 (8 * TCP_MSS)
 #define TCP_SND_QUEUELEN            (4 * TCP_SND_BUF / TCP_MSS)
 #define DNS_MAX_SERVERS             2

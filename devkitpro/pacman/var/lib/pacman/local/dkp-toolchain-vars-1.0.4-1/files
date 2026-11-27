@@ -1,0 +1,17 @@
+%FILES%
+opt/
+opt/devkitpro/
+opt/devkitpro/3dsvars.sh
+opt/devkitpro/armv4tvars.sh
+opt/devkitpro/cmake/
+opt/devkitpro/cubevars.sh
+opt/devkitpro/devkita64.sh
+opt/devkitpro/devkitarm.sh
+opt/devkitpro/devkitppc.sh
+opt/devkitpro/ndsvars.sh
+opt/devkitpro/portlibs_prefix.sh
+opt/devkitpro/ppcvars.sh
+opt/devkitpro/switchvars.sh
+opt/devkitpro/wiiuvars.sh
+opt/devkitpro/wiivars.sh
+

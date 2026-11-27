@@ -1,0 +1,10 @@
+prefix=/opt/devkitpro/portlibs/gamecube
+libdir=/opt/devkitpro/portlibs/gamecube/lib
+includedir=${prefix}/include
+
+Name: glut
+Description: A freely licensed and improved alternative to the GLUT library
+Version: 3.6.0
+Libs: -L${libdir} -lglut
+Libs.private: -lm
+Cflags: -I${includedir} -DFREEGLUT_STATIC
