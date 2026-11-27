@@ -12,7 +12,8 @@ static int ioctl_(u32 cmd, const void *data, u32 dlen, u32 n, int set) {
     __builtin_memset(iobuf, 0, n); if (data) __builtin_memcpy(iobuf, data, dlen < n ? dlen : n);
     return WUPK->wifi_ioctl(cmd, iobuf, n, set);
 }
-static int radio_ok, scan_err;
+static int radio_ok, scan_err, up_err;
+int wifi_up_err(void) { return up_err; }            /* the last wifi_bringup's kernel error (0: up) */
 static int dbg_heard, dbg_5g;                          /* what the card heard: BSS entries, and those on 5 GHz */
 static int dbg_ch[24], dbg_nch;                        /* the channels heard (for the "0 networks" note) */
 int wifi_scan_err(void) { return scan_err; }        /* the last wifi_scan's error (0: none, -2..: see wifi_hw.c) */
@@ -25,6 +26,7 @@ void wifi_scan_stats(int *heard, int *g5) { *heard = dbg_heard; *g5 = dbg_5g; }
 int wifi_bringup(void) {
     if (radio_ok) return 0;
     int r = WUPK->wifi_up();
+    up_err = r;
     if (!r) radio_ok = 1;
     return r;
 }

@@ -403,6 +403,8 @@ static void wifi_screen(lv_obj_t *scr) {
     if (nnets == -2) {                                  /* the radio did not come up */
         lv_obj_set_flex_align(l, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_t *t = lv_label_create(l); lv_label_set_text(t, "Wi-Fi Not Available"); lv_obj_set_style_text_font(t, &inter_24, 0);
+        { static char e[64]; snprintf(e, sizeof e, "(radio %d)", wifi_up_err());
+          lv_obj_t *d = lv_label_create(l); lv_label_set_text(d, e); lv_obj_set_style_text_font(d, &inter_16, 0); }
         return;
     }
     if (nnets < 0) {

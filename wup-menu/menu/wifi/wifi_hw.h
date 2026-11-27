@@ -12,6 +12,7 @@ int wifi_scan(wifi_net *out, int max);            /* 5 GHz networks, strongest f
 int wifi_scan_err(void);                          /* the last scan's ioctl error (0: the scan itself worked) */
 int wifi_scan_heard(int *ch, int max);            /* the channels the last scan heard (diagnostic) */
 void wifi_scan_stats(int *heard, int *g5);        /* BSS entries heard, and those on 5 GHz */
+int wifi_up_err(void);                            /* the last bring-up's kernel error (0: the radio is up) */
 int wifi_join(const wifi_net *net, const u8 *pmk);/* pmk = NULL for an open network */
 int wifi_associated(const wifi_net *net);
 int wifi_leave(void);                             /* off the network it is on */
