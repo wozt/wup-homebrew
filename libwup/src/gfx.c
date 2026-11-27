@@ -9,19 +9,29 @@ typedef uint32_t u32;
 #define LCD(o) (*(volatile u32 *)(0xf0009400u + (o)))
 #include "wup_ram.h"
 #include "wupk.h"
+#ifdef WUP_LARGE                                          /* a large app (app.cfg large = yes): screen 1 alone; screen 0 is
+                                                             its heap (malloc_large.c). Drawn where it is shown */
+static px_t *scr_back = (px_t *)WUP_FB1, *scr_front = (px_t *)WUP_FB1;
+#else
 static px_t *scr_back = (px_t *)WUP_FB0, *scr_front = (px_t *)WUP_FB1;
+#endif
 #define FB scr_back
 #include "armcpu.h"
 #define dclean cache_clean
 #define HWCLK (*(volatile u32 *)0xf0000408u)              /* ~997 kHz */
 
 px_t *gfx_fb(void) { return FB; }
+#ifdef WUP_LARGE
+static px_t *tgt = (px_t *)WUP_FB1;
+static void screens_pick(void) { }
+#else
 static px_t *tgt = (px_t *)WUP_FB0;
 static void screens_pick(void) {                          /* the back buffer is the one not on the screen now */
     px_t *shown = (px_t *)WUPK->screen_shown();
     scr_front = shown == (px_t *)WUP_FB1 ? (px_t *)WUP_FB1 : (px_t *)WUP_FB0;
     scr_back = scr_front == (px_t *)WUP_FB0 ? (px_t *)WUP_FB1 : (px_t *)WUP_FB0;
 }
+#endif
 /* the RGB565 screen on: the layer set up for it (an app may have used the 8-bit screen before), the screen the kernel
    shows kept, drawing into the other */
 static int active;
@@ -60,11 +70,23 @@ static void rect_copy(px_t *to, const px_t *from, int x, int y, int w, int h) {
 extern int wup__video_on;                                 /* (video.c: the screens are the decoder's) */
 static void flip(int x, int y, int w, int h) {
     if (wup__video_on) return;
+#ifdef WUP_LARGE
+    /* one screen, shown all along: nothing to switch (screen_show waits for a refresh: each frame of a game waited for
+       two). Screen 1 is write-through: what was drawn is in RAM once the write buffer drains. */
+    (void)w; (void)h;
+    dclean(scr_back, 0);                                  /* (n = 0: the write buffer drained, alone) */
+    if (WUPK->screen_shown() != scr_back) WUPK->screen_show(scr_back);
+#else
     if (w > 0 && h > 0) dclean(scr_back + y * GFX_W, (u32)h * GFX_W * 2);   /* (the rows presented) */
     WUPK->screen_show(scr_back);
+#endif
+#ifndef WUP_LARGE                                         /* (one screen: nothing to swap or carry over) */
     px_t *t = scr_front; scr_front = scr_back; scr_back = t;
     if (tgt == scr_front) tgt = scr_back;
     if (w > 0 && h > 0) rect_copy(scr_back, scr_front, x, y, w, h);
+#else
+    (void)rect_copy;
+#endif
     if (gfx_present_hook) gfx_present_hook();
 }
 void gfx_present(int x, int y, int w, int h) {

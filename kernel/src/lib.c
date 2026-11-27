@@ -27,10 +27,20 @@ int memcmp(const void *a, const void *b, size_t n) {
     for (; n; n--, x++, y++) if (*x != *y) return *x - *y;
     return 0;
 }
-u32 crc32_more(u32 crc, const void *p, u32 n) {        /* (zlib's crc32(crc, p, n): crc 0 to start) */
+/* CRC-32 (zlib's crc32(crc, p, n): crc 0 to start), a byte at a time through a table made at its first use: a bit
+   at a time, checking the menu's 560 KB took a third of a second at every return to it */
+u32 crc32_more(u32 crc, const void *p, u32 n) {
+    static u32 table[256];
     const u8 *b = p;
     u32 c = ~crc;
-    while (n--) { c ^= *b++; for (int k = 0; k < 8; k++) c = c & 1 ? (c >> 1) ^ 0xedb88320u : c >> 1; }
+    if (!table[1])
+        for (u32 i = 0; i < 256; i++) { u32 v = i; for (int k = 0; k < 8; k++) v = v & 1 ? (v >> 1) ^ 0xedb88320u : v >> 1; table[i] = v; }
+    while (n >= 4) {
+        c = table[(c ^ b[0]) & 0xff] ^ (c >> 8); c = table[(c ^ b[1]) & 0xff] ^ (c >> 8);
+        c = table[(c ^ b[2]) & 0xff] ^ (c >> 8); c = table[(c ^ b[3]) & 0xff] ^ (c >> 8);
+        b += 4; n -= 4;
+    }
+    while (n--) c = table[(c ^ *b++) & 0xff] ^ (c >> 8);
     return ~c;
 }
 u32 crc32(const void *p, u32 n) { return crc32_more(0, p, n); }

@@ -6,7 +6,8 @@ folder as it is (a web server over HTTPS, e.g. GitHub Pages); anyone's repositor
     python3 tools/mkrepo.py [--out OUT] [APP_FOLDER ...]     -> build/repo (default: the apps below)
 
 Each package's zip holds apps/<id>/<id>.wup (the Homebrew Menu's layout), and the app.cfg's files = (data the app
-needs beside it, e.g. a game's data file) in the same folder. wup-homebrew itself is not in it: Software
+needs beside it, e.g. a game's data file) in the same folder, or where it says (/path/on/the/pad=file: RetroArch's
+cores). wup-homebrew itself is not in it: Software
 Update gets it from the project's GitHub Releases (tools/mkrelease.py)."""
 import datetime, hashlib, io, json, os, re, shutil, subprocess, sys, zipfile
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
@@ -20,9 +21,12 @@ APPS = [os.path.join(paths.LIBWUP, 'examples', 'hello')]   # (folders; licence f
 
 
 def cfg(d):
-    c = {}
+    c, last = {}, None
     for line in open(os.path.join(d, 'app.cfg')):
-        if '=' in line and not line.lstrip().startswith('#'): k, v = line.split('=', 1); c[k.strip()] = re.split(r'\s+#', v)[0].strip()
+        text = re.split(r'\s+#', line)[0].rstrip()
+        if not text.strip() or text.lstrip().startswith('#'): continue
+        if line[0] in ' \t' and last: c[last] += ' ' + text.strip()      # (an indented line continues the last key)
+        elif '=' in text: k, v = text.split('=', 1); last = k.strip(); c[last] = v.strip()
     return c
 
 
@@ -52,6 +56,9 @@ def main():
         m = re.search(r'(\S+\.wup) \(', r.stdout)
         if r.returncode or not m: sys.exit('%s did not build:\n%s' % (d, r.stdout[-2000:] + r.stderr[-2000:]))
         return open(m.group(1), 'rb').read()
+    def extra(d, wid, f):                                 # files =: a file beside the app, or /path/on/the/pad=file
+        dest, src = f.split('=', 1) if '=' in f else ('apps/%s/%s' % (wid, os.path.basename(f)), f)
+        return (dest.lstrip('/'), open(os.path.join(d, src), 'rb').read(), zipfile.ZIP_DEFLATED)
     packages = []
     for d in [os.path.abspath(x) for x in a] or APPS:
         c = cfg(d)
@@ -60,8 +67,7 @@ def main():
         packages.append(pkg(out, wid, c['name'], c.get('author', ''), c.get('version', '1.0'), c.get('category', 'tool'),
                             c.get('description', ''), c.get('licence', 'GPL-3.0-or-later'),
                             [('apps/%s/%s.wup' % (wid, wid), built(d), zipfile.ZIP_STORED)]
-                            + [('apps/%s/%s' % (wid, os.path.basename(f)), open(os.path.join(d, f), 'rb').read(), zipfile.ZIP_DEFLATED)
-                               for f in c.get('files', '').split()], icon, c.get('url', HOME)))
+                            + [extra(d, wid, f) for f in c.get('files', '').split()], icon, c.get('url', HOME)))
         print('  %-18s %s' % (wid, c.get('version')))
     json.dump({'packages': packages}, open(os.path.join(out, 'repo.json'), 'w'), indent=1)
     print('%s: %d packages' % (out, len(packages)))

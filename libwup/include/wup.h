@@ -22,10 +22,19 @@
 #include "handoff.h"
 
 #include "wup_ram.h"
+#ifdef __cplusplus                                   /* (C++ apps: these are C) */
+extern "C" {
+#endif
+
 #define WUP_APP_SIZE      (WUP_APP_END - WUP_APP_BASE)
 
+#ifdef __cplusplus
+#define WUP_C_ "C"
+#else
+#define WUP_C_
+#endif
 #define WUP_APP(title) \
-    int _wup_entry(void); \
+    extern WUP_C_ int _wup_entry(void); \
     __attribute__((section(".header"), used)) const struct { uint32_t magic, entry, size; char name[32]; \
                                                              uint32_t reserved[3]; } \
     _wup_header = { 0x57524248u, (uint32_t)_wup_entry, 0, title, { 0, 0, 0 } }   /* (size: wupbuild.py) */
@@ -51,6 +60,8 @@ uint8_t *wup_screen8(void);
 uint32_t wup_stride8(void);
 void wup_palette(int index, uint32_t rgb);           /* 0xRRGGBB */
 void wup_present8(int y, int h);                     /* show rows y..y+h (cache clean) */
+void wup_large_take_screen_rest(void);               /* large apps on the 8-bit screen: the rest of screen 1 (404 KB)
+                                                        to the heap (malloc_large.c); RGB565 drawing on screen then gone */
 void wup_vblank(void);                               /* wait for the vertical blanking interval */
 
 /* input */
@@ -179,3 +190,7 @@ void wup_net_time(void);                             /* the date and time from t
 void wup_net_tx_pacing(unsigned frames_per_ms_x10, unsigned burst);   /* (diagnostics) */                 /* "rx=... rx_dropped=... pool_err=..." (diagnostics) */
 extern void (*wup__net_poll)(void), (*wup__net_exit)(void), (*wup__net_log)(const char *);   /* (libwup internal) */
 extern int (*wup__sock_close)(int fd);
+
+#ifdef __cplusplus
+}
+#endif

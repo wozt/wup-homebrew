@@ -5,16 +5,19 @@ LLD     ?= $(firstword $(wildcard /opt/homebrew/opt/lld/bin/ld.lld $(LLVM)/ld.ll
 CC_PAD   = $(LLVM)/clang
 OBJCOPY  = $(LLVM)/llvm-objcopy
 B        = build
-TINF     = ../libwup/third_party/tinf/src
+ZLIB     = ../libwup/third_party/zlib
 CFLAGS   = --target=armv5te-none-eabi -mcpu=arm926ej-s -marm -mfloat-abi=soft -O2 -g -ffreestanding -fno-common \
            -ffunction-sections -fdata-sections -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
-           -std=gnu11 -Isrc -Isrc/compat -I$(TINF)
-SRC      = $(wildcard src/*.c) $(TINF)/tinflate.c $(TINF)/tinfzlib.c
+           -std=gnu11 -Isrc -Isrc/compat -I$(ZLIB) -DZ_SOLO -DNO_GZIP
+ZSRC     = $(addprefix $(ZLIB)/,inflate.c inffast.c inftrees.c zutil.c adler32.c)   # (inflate alone: app.c)
+SRC      = $(wildcard src/*.c) $(ZSRC)
 OBJ      = $(B)/start.o $(patsubst %.c,$(B)/%.o,$(notdir $(SRC)))
-vpath %.c src $(TINF)
+vpath %.c src $(ZLIB)
 
 all: $(B)/kernel.bin
-$(B)/%.o: %.c src/*.h ../libwup/include/wupk.h | $(B)
+$(ZLIB)/zlib.h $(ZSRC):                 # (zlib: fetched at its pinned version, libwup/tools/deps.py)
+	python3 -c "import sys; sys.path.insert(0, '../libwup/tools'); import deps; deps.fetch('zlib')"
+$(B)/%.o: %.c src/*.h ../libwup/include/wupk.h $(ZLIB)/zlib.h | $(B)
 	$(CC_PAD) $(CFLAGS) -c $< -o $@
 $(B)/start.o: src/start.S | $(B)
 	$(CC_PAD) $(CFLAGS) -c $< -o $@

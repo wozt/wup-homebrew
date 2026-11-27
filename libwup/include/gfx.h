@@ -2,6 +2,10 @@
 #pragma once
 #include <stdint.h>
 #include "font_aa.h"
+#ifdef __cplusplus                                   /* (C++ apps: these are C) */
+extern "C" {
+#endif
+
 typedef uint16_t px_t;
 #define RGB(r, g, b) ((px_t)(((r) >> 3) << 11 | ((g) >> 2) << 5 | ((b) >> 3)))
 #define GFX_W 854
@@ -51,3 +55,7 @@ void gfx_bg_rowpat(px_t *row4, rgb24_t top, rgb24_t bot, int y, int h);  /* 4-pi
 void gfx_fill_pat(px_t *dst, int n, const px_t *pat4, int x0);          /* n pixels of a 4-px pattern */
 void gfx_copy(px_t *dst, const px_t *src, int n);                       /* n pixels, word-wise when aligned */
 void gfx_rrect_vgrad24(int x, int y, int w, int h, int r, rgb24_t top, rgb24_t bottom);
+
+#ifdef __cplusplus
+}
+#endif

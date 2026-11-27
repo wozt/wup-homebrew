@@ -21,13 +21,21 @@ DEPS = {   # name: (folder, git URL, tag/branch, license[, folders: a sparse che
     'picohttpparser': (os.path.join(paths.THIRD, 'picohttpparser'), 'https://github.com/h2o/picohttpparser.git', 'dd573d8fa9264c646a400e96ce9f07dea6f156e4', 'MIT or Perl'),
     'jsmn': (os.path.join(paths.THIRD, 'jsmn'), 'https://github.com/zserge/jsmn.git', 'v1.1.0', 'MIT'),
     # inflate a piece at a time, with a 32 KB window: the App Store's large files (a game's data)
+    # large apps' malloc (app.cfg large = yes): a heap of several pools (src/malloc_large.c)
+    'tlsf': (os.path.join(paths.THIRD, 'tlsf'), 'https://github.com/mattconte/tlsf.git', 'deff9ab509341f264addbd3c8ada533678591905', 'BSD-3-Clause'),
     'uzlib': (os.path.join(paths.THIRD, 'uzlib'), 'https://github.com/pfalcon/uzlib.git', 'v2.9.5', 'Zlib'),
+    'zlib': (os.path.join(paths.THIRD, 'zlib'), 'https://github.com/madler/zlib.git', 'v1.3.1', 'Zlib'),
     # WUP Boy (its own repository, github.com/ravensclawx/wup-boy): the emulator core and its sound (examples/sdl2/minigb_apu: no SDL in it)
     'peanut-gb': (os.path.join(paths.THIRD, 'peanut-gb'), 'https://github.com/deltabeard/Peanut-GB.git', '33f053b9e70297ff0bab53da527c19126384d911', 'MIT'),
     # wup-doom (its own repository): the engine, Chocolate Doom's OPL music player, and the OPL2 (YM3812) emulator for it
     'doomgeneric': (os.path.join(paths.THIRD, 'doomgeneric'), 'https://github.com/ozkl/doomgeneric.git', 'e257a09527062bfb986b6e5e0780839b6cbd5b71', 'GPL-2.0'),
     'chocolate-doom': (os.path.join(paths.THIRD, 'chocolate-doom'), 'https://github.com/chocolate-doom/chocolate-doom.git', 'chocolate-doom-3.1.0', 'GPL-2.0', ['opl', 'src']),
     'emu8950': (os.path.join(paths.THIRD, 'emu8950'), 'https://github.com/digital-sound-antiques/emu8950.git', '1.2.4', 'MIT'),
+    # wup-retroarch (its own repository): RetroArch, and its first core, Gambatte (Game Boy / Color)
+    'retroarch': (os.path.join(paths.THIRD, 'retroarch'), 'https://github.com/libretro/RetroArch.git', 'v1.19.1', 'GPL-3.0-or-later'),
+    'gambatte': (os.path.join(paths.THIRD, 'gambatte'), 'https://github.com/libretro/gambatte-libretro.git', '138bcbbf311300a271896bf93a76370c72cab339', 'GPL-2.0'),
+    'quicknes': (os.path.join(paths.THIRD, 'quicknes'), 'https://github.com/libretro/QuickNES_Core.git', '26bb785c9deddb66a17717b21bb4e328f03ade32', 'LGPL-2.1-or-later'),
+    'libretro-core-info': (os.path.join(paths.THIRD, 'libretro-core-info'), 'https://github.com/libretro/libretro-core-info.git', 'eac3a2784d428444aa2bd472039b5c5540141af1', 'MIT'),
     'compiler-rt': (os.path.join(paths.THIRD, 'llvm'), 'https://github.com/llvm/llvm-project.git', 'llvmorg-19.1.7', 'Apache-2.0 WITH LLVM-exception', ['compiler-rt/lib/builtins']),
 }
 

@@ -1,12 +1,12 @@
 /* The Homebrew Menu and its apps, one after another (the hand-off block: libwup/include/handoff.h). The menu comes
  * from the kernel's menu slot (0x10000: header {"WMNU", stored size, crc32, inflated size, stamp}, image 0x11000);
- * images are app images (wupfmt.h), usually deflated (tinf), inflated straight into the app block (wup_ram.h). An app
+ * images are app images (wupfmt.h), usually deflated, inflated straight into the app block (wup_ram.h) by zlib (its
+ * table-driven inflate: tinf, a bit at a time, took most of a second for a 1 MB app). An app
  * that returns WUP_HANDOFF_RUN has staged the next one; after any other the menu runs again, also after the menu
  * itself ends: the way out is holding Power (the choice is at power-on). */
 #include "os.h"
 #include "../../libwup/include/handoff.h"
 #include "../../libwup/include/wupfmt.h"
-#include "../../libwup/third_party/tinf/src/tinf.h"
 
 #define MENU_HDR   0x00010000u              /* the menu's slot (wup-menu/tools/mkflash.py) */
 #define MENU_END   0x000b0000u
@@ -94,7 +94,7 @@ static int run_staged(volatile wup_handoff_t *pb) {
     if (len > WUP_HANDOFF_STAGE_MAX) { klog("apps: staged image too big\n"); return -1; }
     if (pb->stage_raw) {
         unsigned n = WUP_HANDOFF_WORK_MAX;
-        if (pb->stage_raw > n || tinf_uncompress(app, &n, img, len) != TINF_OK || n != pb->stage_raw) { klog("apps: inflate failed\n"); return -1; }
+        if (pb->stage_raw > n || inflate_raw(app, &n, img, len) || n != pb->stage_raw) { klog("apps: inflate failed\n"); return -1; }
         len = n;
     } else memmove(app, img, len);
     const hb_header *h = (const hb_header *)app;

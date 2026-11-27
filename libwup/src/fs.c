@@ -130,7 +130,9 @@ int fs_mount(int *formatted) {
     lfs_mkdir(&fs_lfs, "/apps");
     lfs_mkdir(&fs_lfs, "/save");
     mounted = 1;
-    fs__used_refresh();
+    used_ok = 0;                                      /* (what the filesystem uses: found before a write, below: finding
+                                                         it reads a little of every block of every file, a fifth of a
+                                                         second at every app's start for a map only writes use) */
     return 0;
 }
 static int used_cb(void *d, lfs_block_t b) { (void)d; mark(b); return 0; }
@@ -166,6 +168,7 @@ int fs_read(const char *path, u32 off, void *dst, u32 len) {
     return (int)n;
 }
 int fs_write(const char *path, const void *src, u32 len) {
+    fs__used_refresh();
     lfs_file_t f; int r = lfs_file_opencfg(&fs_lfs, &f, path, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC, &fcfg);
     if (r) return r;
     lfs_ssize_t n = lfs_file_write(&fs_lfs, &f, src, len);

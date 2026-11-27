@@ -20,7 +20,12 @@ void *sbrk(ptrdiff_t n) {
     void *p = (void *)brk_; brk_ += (uintptr_t)n;
     return p;
 }
+#ifdef WUP_LARGE
+size_t wup__large_free(void);                         /* (malloc_large.c: the heap is TLSF's, over two pools) */
+size_t wup_mem_free(void) { return wup__large_free(); }
+#else
 size_t wup_mem_free(void) { return WUP_APP_END - (brk_ ? brk_ : (((uintptr_t)__bss_end + 31) & ~(uintptr_t)31)); }
+#endif
 
 /* ---- stdout and stderr: the log (the UART, and UDP port 28803 with networking up), a line at a time */
 static int log_put(char c, FILE *f) {
@@ -76,6 +81,25 @@ int open(const char *path, int flags, ...) {
     if (r) return lfs_fail(r);
     files[i].used = 1; files[i].net = 0;
     return FD_FILES + i;
+}
+int ftruncate(int fd, off_t len) {                       /* (a file shortened or lengthened: littlefs's own) */
+    lfs_file_t *f = file(fd); if (!f) return -1;
+    int r = lfs_file_truncate(&fs_lfs, f, (lfs_off_t)len);
+    return r ? lfs_fail(r) : 0;
+}
+int fsync(int fd) {                                       /* (what was written, kept: littlefs commits a file's
+                                                             contents at its sync or close) */
+    lfs_file_t *f = file(fd); if (!f) return -1;
+    int r = lfs_file_sync(&fs_lfs, f);
+    return r ? lfs_fail(r) : 0;
+}
+long sysconf(int name) {                                  /* (what is asked of it: the page size, one processor) */
+    switch (name) {
+    case _SC_PAGESIZE: return 4096;
+    case _SC_NPROCESSORS_CONF: case _SC_NPROCESSORS_ONLN: return 1;
+    case _SC_CLK_TCK: return 1000;
+    default: errno = EINVAL; return -1;
+    }
 }
 int close(int fd) {
     if (fd < FD_FILES) { if (wup__sock_close) return wup__sock_close(fd); errno = EBADF; return -1; }

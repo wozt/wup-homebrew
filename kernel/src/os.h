@@ -18,6 +18,7 @@ int strcmp(const char *a, const char *b);
 int strncmp(const char *a, const char *b, size_t n);
 size_t strspn(const char *s, const char *a);
 size_t strcspn(const char *s, const char *r);
+int inflate_raw(unsigned char *dst, unsigned *n, const unsigned char *src, unsigned len);   /* zinflate.c: 0 = inflated */
 void *kmalloc(size_t n);                     /* heap.c */
 void kfree(void *p);
 u32 kheap_free(u32 *largest);
