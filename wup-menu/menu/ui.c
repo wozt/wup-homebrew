@@ -1,6 +1,7 @@
 /* The Homebrew Menu's screens, with LVGL's stock widgets and theme. Every screen is a function that builds it from
  * the current state; the screens in use are a stack (B goes back). Work that takes time (scanning, joining,
  * installing) never runs inside an LVGL event: the event defers it to ui_step(), in the menu's main loop. */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +9,7 @@
 #include "wup_hw.h"
 #include "wupfmt.h"
 #include "ftpd.h"
+#include "netshare.h"
 #include "catalog.h"
 #include "release.h"
 #include "version.h"
@@ -426,6 +428,9 @@ static void wifi_screen(lv_obj_t *scr) {
 static void file_sharing_screen(lv_obj_t *scr);
 static void network_screen(lv_obj_t *scr);
 static void system_screen(lv_obj_t *scr);
+static void netfs_screen(lv_obj_t *scr);
+static void browse_screen(lv_obj_t *scr);
+static void test_screen(lv_obj_t *scr);
 static void on_update(lv_event_t *e);
 static void on_open(lv_event_t *e) { push((screen_fn)lv_event_get_user_data(e)); }
 static void on_wifi(lv_event_t *e) { (void)e; nnets = -1; push(wifi_screen); }
@@ -463,6 +468,9 @@ static void network_screen(lv_obj_t *scr) {
     note(l, "The network the GamePad joins for file sharing, the Netloader and apps.");
     row(l, LV_SYMBOL_DIRECTORY, "File Sharing", M.cfg.share_off ? "Off" : "On", on_open, file_sharing_screen);
     note(l, "Copy apps and files between a computer and the GamePad.");
+    { netfs_cfg_t *c = menu_netfs(); char v[32]; snprintf(v, sizeof v, "%s%s", c->on ? "On" : "Off", c->ip[0] ? "" : " — no server");
+      row(l, LV_SYMBOL_SD_CARD, "Network Storage", v, on_open, netfs_screen); }
+    note(l, "A folder on a computer, read by apps at /net.");
 }
 static void file_sharing_screen(lv_obj_t *scr) {
     char f[160];
@@ -475,6 +483,169 @@ static void file_sharing_screen(lv_obj_t *scr) {
     row(l, NULL, "Login", M.share_auth ? "Password" : "Anyone", on_login, NULL);
     if (M.share_auth) row(l, NULL, "Password", M.share_pass_set ? "Set" : "Not Set", on_share_pw, NULL);
     note(l, M.share_auth ? "Sign in with the user name \"pad\" and this password." : "Anyone on your network can connect without a password.");
+}
+
+/* ---- Network Storage (/net): a folder on a computer, read by apps through libwup's VFS */
+static int ip_ok(const char *s) {                        /* dotted quad, four 0-255 numbers */
+    int parts = 0, v = -1;
+    for (const char *p = s; ; p++) {
+        if (*p >= '0' && *p <= '9') { if (v < 0) v = 0; v = v * 10 + *p - '0'; if (v > 255) return 0; }
+        else if (*p == '.') { if (v < 0 || parts == 3) return 0; parts++; v = -1; }
+        else if (!*p) return v >= 0 && parts == 3;
+        else return 0;
+    }
+}
+static void nfs_save_show(void) { menu_netfs_save(); show(); }
+static void on_nfs_on(lv_event_t *e) { (void)e; netfs_cfg_t *c = menu_netfs(); c->on = !c->on; nfs_save_show(); }
+static void nfs_ip_done(void) {
+    netfs_cfg_t *c = menu_netfs();
+    if (!ip_ok(kb_text)) { wup_alert("Not an IP Address", "Like 192.168.1.10", "OK", NULL, NULL, 0); return; }
+    snprintf(c->ip, sizeof c->ip, "%s", kb_text); nfs_save_show();
+}
+static void on_nfs_ip(lv_event_t *e) { (void)e; ask_text("Server Address", "192.168.1.10", 7, 15, 0, nfs_ip_done); }
+static void nfs_port_done(void) {
+    netfs_cfg_t *c = menu_netfs();
+    char *end = 0; long p = kb_text[0] ? strtol(kb_text, &end, 10) : 0;
+    if (!end || *end || p < 1 || p > 65535) { wup_alert("Not a Port", "A number from 1 to 65535", "OK", NULL, NULL, 0); return; }
+    c->port = (uint16_t)p; nfs_save_show();
+}
+static void on_nfs_port(lv_event_t *e) { (void)e; ask_text("Server Port", "8734", 1, 5, 0, nfs_port_done); }
+static void nfs_token_done(void) {
+    netfs_cfg_t *c = menu_netfs();
+    int n = (int)strlen(kb_text);
+    if (n > NETFS_TOKEN_LEN) n = NETFS_TOKEN_LEN;
+    memcpy(c->token, kb_text, (size_t)n); c->token_len = (uint8_t)n; c->token[n] = 0; nfs_save_show();
+}
+static void on_nfs_token(lv_event_t *e) { (void)e; ask_text("Access Token", "Empty for none", 0, NETFS_TOKEN_LEN, 1, nfs_token_done); }
+static void on_nfs_cache(lv_event_t *e) {
+    (void)e; netfs_cfg_t *c = menu_netfs();
+    static const uint8_t v[] = { 255, 0, 64, 16, 8 };   /* off, 32 (default), 64, 16, 8 KB */
+    int i = 0; while (i < 5 && c->cache_kb != v[i]) i++;
+    c->cache_kb = v[(i + 1) % 5]; nfs_save_show();
+}
+static const char *cache_label(uint8_t k) { return k == 255 ? "Off" : !k ? "32 KB" : k == 64 ? "64 KB" : k == 16 ? "16 KB" : "8 KB"; }
+static const char *ns_err(int e) {
+    switch (e) {
+    case ENETUNREACH: return "No Wi-Fi connection";
+    case ECONNREFUSED: return "Nothing answers on that address";
+    case ETIMEDOUT: return "The server did not answer";
+    case EACCES: case EPERM: return "Wrong access token";
+    case ENOENT: return "Nothing at that path";
+    case ENOTDIR: return "Not a folder";
+    case EINVAL: return "Bad server address";
+    case EFBIG: return "The app is too big to run this way";
+    case ENOTSUP: return "This app can't run from the network";
+    case ECANCELED: return "Cancelled";
+    default: return "The connection failed";
+    }
+}
+static void on_nfs_test(lv_event_t *e) {
+    (void)e; netfs_cfg_t *c = menu_netfs();
+    if (!c->on || !c->ip[0]) { wup_alert("Network Storage Is Off", "Turn it on and set a server address first", "OK", NULL, NULL, 0); return; }
+    ns_begin_test(c); push(test_screen);
+}
+static void browse_go(const char *path);
+static void on_nfs_browse(lv_event_t *e) {
+    (void)e; netfs_cfg_t *c = menu_netfs();
+    if (!c->on || !c->ip[0]) { wup_alert("Network Storage Is Off", "Turn it on and set a server address first", "OK", NULL, NULL, 0); return; }
+    browse_go("/"); push(browse_screen);
+}
+static void netfs_screen(lv_obj_t *scr) {
+    char v[80];
+    lv_obj_t *l = page(scr, "Network Storage", "B Back    A Select");
+    netfs_cfg_t *c = menu_netfs();
+    sw_row(l, "Network Storage", c->on, on_nfs_on);
+    snprintf(v, sizeof v, "%s", c->ip[0] ? c->ip : "—");
+    row(l, NULL, "Server", v, on_nfs_ip, NULL);
+    snprintf(v, sizeof v, "%u", c->port ? c->port : NETFS_PORT_DEF);
+    row(l, NULL, "Port", v, on_nfs_port, NULL);
+    row(l, NULL, "Access Token", c->token_len ? "Set" : "None", on_nfs_token, NULL);
+    row(l, NULL, "Read Cache", cache_label(c->cache_kb), on_nfs_cache, NULL);
+    if (!M.ip[0]) note(l, "Join a Wi-Fi network in Network > Wi-Fi first.");
+    else {
+        row(l, LV_SYMBOL_DOWNLOAD, "Test Connection", NULL, on_nfs_test, NULL);
+        row(l, LV_SYMBOL_DIRECTORY, "Browse Files", NULL, on_nfs_browse, NULL);
+        note(l, "Apps see the server's folder at /net. A computer runs tools/netfs-server to share one.");
+    }
+}
+/* the test: a busy screen while the server answers; ui_step reports the outcome */
+static void test_screen(lv_obj_t *scr) { busy(page(scr, "Network Storage", "B Back"), "Testing\xE2\x80\xA6", "", NULL, NULL); }
+static void test_done(void) {
+    if (stack[depth] != test_screen) return;
+    int r = ns_result();
+    pop();
+    if (!r) wup_notice("Connected", 1);
+    else { static char t[128]; snprintf(t, sizeof t, "%s", ns_err(r)); wup_alert("Can't Reach the Server", t, "OK", NULL, NULL, 0); }
+}
+/* browsing: br_path is the server-side folder; entries come from netshare.c */
+static void size_str(char *out, int n, uint64_t b) {   /* picolibc's printf has no %f: tenths by hand */
+    static const struct { uint64_t unit; const char *u; } u[] = {
+        { 1ull << 30, "GB" }, { 1ull << 20, "MB" }, { 1ull << 10, "KB" } };
+    for (int i = 0; i < 3; i++)
+        if (b >= u[i].unit) {
+            uint64_t t = b * 10 / u[i].unit;
+            snprintf(out, (size_t)n, "%llu.%llu %s", (unsigned long long)(t / 10), (unsigned long long)(t % 10), u[i].u);
+            return;
+        }
+    snprintf(out, (size_t)n, "%llu B", (unsigned long long)b);
+}
+static int ends_wup(const char *n) { int l = (int)strlen(n); return l > 4 && !strcmp(n + l - 4, ".wup"); }
+static char br_path[320] = "/";
+static void browse_go(const char *path) {
+    snprintf(br_path, sizeof br_path, "%s", path);
+    ns_begin_browse(menu_netfs(), br_path);
+}
+static void br_open(const char *name) {           /* a directory row: go deeper */
+    size_t n = strlen(br_path);
+    snprintf(br_path, sizeof br_path, "%s%s%s", br_path, n > 1 ? "/" : "", name);
+    ns_begin_browse(menu_netfs(), br_path);
+    push(browse_screen);
+}
+static void br_up(void) {                          /* "..": the parent folder */
+    char *s = br_path + strlen(br_path);
+    while (s > br_path + 1 && *--s != '/') ;
+    if (*s == '/') *s = 0; else br_path[1] = 0;
+    ns_begin_browse(menu_netfs(), br_path);
+}
+static void br_file(const char *name, uint64_t size) {
+    static char t[320];
+    snprintf(t, sizeof t, "%s — %llu bytes", name, (unsigned long long)size);
+    wup_alert("File", t, "OK", NULL, NULL, 0);
+}
+static void on_br_dir(lv_event_t *e) { int i = (int)(intptr_t)lv_event_get_user_data(e); int n; const ns_ent_t *es = ns_entries(&n); if (i < n) br_open(es[i].name); }
+static void on_br_file(lv_event_t *e) { int i = (int)(intptr_t)lv_event_get_user_data(e); int n; const ns_ent_t *es = ns_entries(&n); if (i < n) br_file(es[i].name, es[i].size); }
+static void on_br_up(lv_event_t *e) { (void)e; br_up(); show(); }
+static void on_nfs_browse_retry(lv_event_t *e) { (void)e; browse_go(br_path); show(); }
+static void browse_screen(lv_obj_t *scr) {
+    lv_obj_t *l = page(scr, "Network Storage", "B Back    A Open");
+    if (ns_state() == NS_WORK) { busy(l, "Reading\xE2\x80\xA6", "", NULL, NULL); return; }
+    if (ns_state() == NS_FAIL) {
+        lv_obj_t *t = lv_label_create(l); lv_label_set_text(t, ns_err(ns_result())); lv_obj_set_style_text_font(t, &inter_20, 0);
+        row(l, LV_SYMBOL_REFRESH, "Try Again", NULL, on_nfs_browse_retry, NULL);
+        return;
+    }
+    if (strcmp(br_path, "/")) row(l, LV_SYMBOL_LEFT, "..", NULL, on_br_up, NULL);
+    int n = 0; const ns_ent_t *es = ns_entries(&n);
+    if (!n) { note(l, "Empty folder"); return; }
+    /* homebrew on the share (.wup) apart from the other files */
+    int wups = 0;
+    for (int i = 0; i < n; i++) if (!es[i].is_dir && ends_wup(es[i].name)) wups++;
+    for (int pass = wups ? 0 : 1; pass < 2; pass++) {
+        if (wups && (pass == 0 ? !wups : n == wups)) continue;
+        if (wups) note(l, pass ? "Files and Folders" : "Apps");
+        for (int i = 0; i < n; i++) {
+            int wup = !es[i].is_dir && ends_wup(es[i].name);
+            if ((pass == 0) != wup) continue;
+            char val[24];
+            if (es[i].is_dir) { val[0] = 0; row(l, LV_SYMBOL_DIRECTORY, es[i].name, NULL, on_br_dir, (void *)(uintptr_t)i); }
+            else {
+                size_str(val, sizeof val, es[i].size);
+                row(l, wup ? LV_SYMBOL_UPLOAD : LV_SYMBOL_FILE, es[i].name, val, on_br_file, (void *)(uintptr_t)i);
+            }
+        }
+    }
+    if (ns_truncated()) note(l, "First 64 entries shown");
+    note(l, br_path);
 }
 static void zone_screen(lv_obj_t *scr);
 static void date_time_screen(lv_obj_t *scr);
@@ -853,6 +1024,7 @@ void ui_step(void) {
     if (stack[depth] == kb_screen && kb_obj) kb_buttons(pressed, &pressed);   /* the keyboard: B, Y, X, -, +, L and R type */
     if (pressed & WUP_B) {
         if (stack[depth] == netloader_screen) { wuplink_close(); nl_title = 0; }
+        if (stack[depth] == test_screen || stack[depth] == browse_screen) ns_abort();
         pop();
     } else if (!depth && (pressed & WUP_X)) push(settings_screen);
     else if (!depth && (pressed & WUP_Y)) push(netloader_screen);
@@ -860,6 +1032,8 @@ void ui_step(void) {
     else if (stack[depth] == store_screen && st_loaded && (pressed & WUP_Y)) push(repos_screen);
     else if (stack[depth] == repos_screen && (pressed & WUP_X)) repo_remove(focused_index());   /* (the rows: the repositories first) */
     if (stack[depth] == netloader_screen) netloader_step();
+    if (stack[depth] == test_screen && ns_state() != NS_WORK) { defer(test_done); return; }
+    if (stack[depth] == browse_screen && ns_state() != NS_WORK && ns_state() != NS_IDLE) show();
     if (++ticks % 100 == 0) {
         sys_power(&M.power); status_text();
         static int warned;
