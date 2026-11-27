@@ -923,19 +923,116 @@ static void store_screen(lv_obj_t *scr) {
 }
 static void store_open(void) { st_loaded = 0; push(store_screen); }
 
-/* ---- home: the installed apps */
+/* ---- network apps: the .wup files on the share's root, listed after the installed ones ---- */
+#define HN_MAX 24                                  /* network apps listed at once (the share's root, .wup only) */
+static ns_ent_t hn_apps[HN_MAX];
+static int hn_count;
+static int hn_scan, hn_ever;                    /* hn_scan: a browse of "/" is collecting them; hn_ever: the first scan ran */
+static char hn_ver[HN_MAX][16];                 /* each network app's version, from a header probe ("" until it lands) */
+static int hn_pi, hn_pw, hn_wait, hn_changed;   /* the probe queue: hn_pi next to ask, hn_pw in flight, hn_wait result pending */
+static void sep(lv_obj_t *list, const char *text) {   /* a section's name between the local apps and the network's */
+    lv_obj_t *h = lv_label_create(list);
+    lv_label_set_text(h, text);
+    lv_obj_set_style_text_font(h, &inter_20, 0);
+    lv_obj_set_style_pad_hor(h, 16, 0); lv_obj_set_style_pad_top(h, 16, 0); lv_obj_set_style_pad_bottom(h, 2, 0);
+}
+static void net_scan(void) {
+    netfs_cfg_t *c = menu_netfs();
+    if (!c->on || !c->ip[0] || !M.ip[0]) return;
+    hn_scan = 1;
+    ns_begin_browse(c, "/");
+}
+static void net_scan_done(void) {                 /* the "/" listing is in: keep its .wup files */
+    int n = 0; const ns_ent_t *es = ns_entries(&n);
+    int m = 0;
+    for (int i = 0; i < n && m < HN_MAX; i++)
+        if (!es[i].is_dir && ends_wup(es[i].name)) hn_apps[m++] = es[i];
+    hn_count = m;
+    memset(hn_ver, 0, sizeof hn_ver);
+    hn_pi = hn_pw = hn_wait = hn_changed = 0;
+    if (!depth) show();
+}
+/* a network app's icon, kept in littlefs once probed: "/.nic_<slug>" (root always exists) */
+static void nic_path(const char *name, char *out, int n) {
+    int i = 1; out[0] = '/';
+    for (const char *s = name; *s && *s != '.' && i < n - 9; s++)
+        out[i++] = (*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || (*s >= '0' && *s <= '9') || *s == '-' || *s == '_' ? *s : '_';
+    memcpy(out + i, ".icon", 6);
+}
+/* the header probes, one app at a time and only on the home screen (they share the one TCP link) */
+static void hn_probe_pump(void) {
+    if (hn_wait) {
+        if (ns_state() == NS_WORK && ns_op() == 4) return;      /* still on the wire */
+        int j = hn_pw; hn_pw = -1; hn_wait = 0;
+        if (ns_state() == NS_DONE && ns_op() == 4 && j >= 0 && j < hn_count) {
+            snprintf(hn_ver[j], sizeof hn_ver[j], "%s", ns_probe_version());
+            int il = 0; const uint8_t *ip = ns_probe_icon(&il);
+            if (ip && il == WUP_ICON * WUP_ICON * 2) {                     /* the raw icon: drawn like a local one */
+                char p[80]; nic_path(hn_apps[j].name, p, sizeof p);
+                if (fs_write(p, ip, il) == il) hn_changed = 1;
+            }
+            if (hn_ver[j][0]) hn_changed = 1;
+            if (hn_changed && !depth) { hn_changed = 0; show(); }   /* each landed probe repaints the row it filled */
+        }
+    }
+    if (depth || hn_pi >= hn_count) {
+        if (!hn_wait && hn_changed && !depth) { hn_changed = 0; show(); }
+        return;
+    }
+    if (ns_state() == NS_WORK) return;                        /* another op owns the link */
+    int j = hn_pi++;
+    char r[320]; snprintf(r, sizeof r, "/%s", hn_apps[j].name);
+    if (ns_begin_probe(menu_netfs(), r) == NS_WORK) { hn_pw = j; hn_wait = 1; }
+}
+/* a network app: its code streams into the stage (the framebuffer: frozen while it fills), then the loader runs it */
+static char f_remote[320];
+static int f_sel;
+static void fetch_screen(lv_obj_t *scr), fetch_go(void);
+static void on_netapp(lv_event_t *e) {
+    (void)e;
+    int j = home_sel - apps_count;
+    if (j < 0 || j >= hn_count) return;
+    netfs_cfg_t *c = menu_netfs();
+    if (!c->on || !c->ip[0]) { wup_alert("Network Storage Is Off", "Turn it on and set a server address first", "OK", NULL, NULL, 0); return; }
+    snprintf(f_remote, sizeof f_remote, "/%s", hn_apps[j].name);
+    f_sel = j; hn_scan = 0;
+    push(fetch_screen);
+    defer(fetch_go);
+}
+static void fetch_go(void) {
+    wup_lvgl_hold(1);                              /* presents off: the stage IS the framebuffer */
+    memset((void *)WUP_HANDOFF_STAGE, 0, 854 * 480 * 2);   /* black while it fills, not the app's bytes as noise */
+    if (ns_begin_fetch(menu_netfs(), f_remote) != NS_WORK) {
+        wup_lvgl_hold(0); pop();
+        static char t[128]; snprintf(t, sizeof t, "%s", ns_err(ns_result()));
+        wup_alert("Couldn't Fetch the App", t, "OK", NULL, NULL, 0);
+    }
+}
+static void fetch_screen(lv_obj_t *scr) {
+    lv_obj_t *l = page(scr, "Network Storage", "B Back");
+    lv_obj_set_flex_align(l, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(l, 10, 0);
+    lv_obj_t *t = lv_label_create(l); lv_obj_set_style_text_font(t, &inter_24, 0); lv_label_set_text(t, "Fetching\xE2\x80\xA6");
+    lv_obj_t *s = lv_label_create(l); lv_obj_set_style_text_opa(s, LV_OPA_60, 0); lv_label_set_text(s, hn_apps[f_sel].name);
+}
+
+/* ---- home: the installed apps, then the share's */
 #define ICONS 12                                   /* icons kept in memory (8 KB each); apps after that show without */
-static lv_image_dsc_t icon[ICONS];
+#define NICON_NET 8                                /* network app icons kept the same way */
+static lv_image_dsc_t icon[ICONS], nicon[NICON_NET];
 static void on_app(lv_event_t *e) {
     home_sel = (int)(intptr_t)lv_event_get_user_data(e);
+    if (home_sel >= apps_count) { on_netapp(e); return; }
     const char *err = menu_start(apps_list[home_sel].path);
     if (!err) for (int t = 0; t < 30; t += 10) wup_lvgl_run(10);      /* (the click heard before the menu goes) */
     if (err) { static char t[64]; snprintf(t, sizeof t, "\"%s\" Can't Be Opened", apps_list[home_sel].name); wup_alert(t, err, "OK", NULL, NULL, 0); }
 }
 static void on_focus(lv_event_t *e) { home_sel = (int)(intptr_t)lv_event_get_user_data(e); }
 static void home_screen(lv_obj_t *scr) {
-    lv_obj_t *l = page(scr, "Homebrew Menu", apps_count ? "+ App Store    Y Netloader    X Settings    A Open" : "+ App Store    Y Netloader    X Settings");
+    int n = apps_count + hn_count;
+    lv_obj_t *l = page(scr, "Homebrew Menu", n ? "+ App Store    Y Netloader    X Settings    A Open" : "+ App Store    Y Netloader    X Settings");
     for (int i = 0; i < ICONS; i++) { free((void *)icon[i].data); icon[i].data = 0; }
+    for (int i = 0; i < NICON_NET; i++) { free((void *)nicon[i].data); nicon[i].data = 0; }
     for (int i = 0; i < apps_count; i++) {
         char t[140];
         const app_entry_t *a = &apps_list[i];
@@ -954,7 +1051,29 @@ static void home_screen(lv_obj_t *scr) {
         lv_obj_t *b = row(l, img ? img : LV_SYMBOL_FILE, t, a->version, on_app, (void *)(intptr_t)i);
         lv_obj_add_event_cb(b, on_focus, LV_EVENT_FOCUSED, (void *)(intptr_t)i);
     }
-    if (!apps_count) {                              /* an empty place for an app, and three words */
+    if (hn_count) {
+        sep(l, "Network Storage");
+        for (int j = 0; j < hn_count; j++) {
+            int i = apps_count + j;
+            char t[140], ip[80];
+            const void *img = NULL;
+            snprintf(t, sizeof t, "%s", hn_apps[j].name);
+            {   char *dot = strrchr(t, '.'); if (dot) *dot = 0; }      /* "x.wup" -> "x" */
+            if (j < NICON_NET) {
+                uint8_t *px = malloc(WUP_ICON * WUP_ICON * 2);
+                nic_path(hn_apps[j].name, ip, sizeof ip);
+                if (px && fs_read(ip, 0, px, WUP_ICON * WUP_ICON * 2) == WUP_ICON * WUP_ICON * 2) {
+                    nicon[j].header.magic = LV_IMAGE_HEADER_MAGIC; nicon[j].header.cf = LV_COLOR_FORMAT_RGB565;
+                    nicon[j].header.w = nicon[j].header.h = WUP_ICON; nicon[j].header.stride = WUP_ICON * 2;
+                    nicon[j].data = px; nicon[j].data_size = WUP_ICON * WUP_ICON * 2;
+                    img = &nicon[j];
+                } else free(px);
+            }
+            lv_obj_t *b = row(l, img ? img : LV_SYMBOL_DOWNLOAD, t, hn_ver[j], on_app, (void *)(intptr_t)i);
+            lv_obj_add_event_cb(b, on_focus, LV_EVENT_FOCUSED, (void *)(intptr_t)i);
+        }
+    }
+    if (!apps_count && !hn_count) {                /* an empty place for an app, and three words */
         lv_obj_set_flex_align(l, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_row(l, 24, 0);
         lv_obj_t *slot = lv_obj_create(l);
@@ -1024,7 +1143,8 @@ void ui_step(void) {
     if (stack[depth] == kb_screen && kb_obj) kb_buttons(pressed, &pressed);   /* the keyboard: B, Y, X, -, +, L and R type */
     if (pressed & WUP_B) {
         if (stack[depth] == netloader_screen) { wuplink_close(); nl_title = 0; }
-        if (stack[depth] == test_screen || stack[depth] == browse_screen) ns_abort();
+        if (stack[depth] == fetch_screen) wup_lvgl_hold(0);   /* presents back on before the pop */
+        if (stack[depth] == test_screen || stack[depth] == browse_screen || stack[depth] == fetch_screen) ns_abort();
         pop();
     } else if (!depth && (pressed & WUP_X)) push(settings_screen);
     else if (!depth && (pressed & WUP_Y)) push(netloader_screen);
@@ -1034,6 +1154,27 @@ void ui_step(void) {
     if (stack[depth] == netloader_screen) netloader_step();
     if (stack[depth] == test_screen && ns_state() != NS_WORK) { defer(test_done); return; }
     if (stack[depth] == browse_screen && ns_state() != NS_WORK && ns_state() != NS_IDLE) show();
+    if (hn_scan && ns_state() != NS_WORK) {      /* the "/" listing for the home section is in (or was cut short) */
+        if (ns_state() == NS_DONE && ns_op() == 1 && !strcmp(ns_browse_path(), "/")) net_scan_done(); else hn_scan = 0;
+    }
+    hn_probe_pump();                              /* network apps' versions and icons, a few at a time */
+    if (stack[depth] == fetch_screen) {
+        if (ns_state() == NS_DONE) {
+            const char *err = menu_start_netapp(f_remote, ns_stage_size(), ns_stage_raw());
+            if (err) {                          /* staged but refused: back to a live screen */
+                wup_lvgl_hold(0); pop();
+                static char t[128]; snprintf(t, sizeof t, "%s", err);
+                wup_alert("Couldn't Start the App", t, "OK", NULL, NULL, 0);
+            }                                   /* else leaving = 1: the menu's loop ends into the loader */
+        } else if (ns_state() == NS_FAIL) {
+            int r = ns_result(); wup_lvgl_hold(0); pop();
+            if (r != ECANCELED) { static char t[128]; snprintf(t, sizeof t, "%s", ns_err(r)); wup_alert("Couldn't Fetch the App", t, "OK", NULL, NULL, 0); }
+        }
+    }
+    if (!hn_ever && !depth && stack[depth] == home_screen && M.ip[0]) {   /* once Wi-Fi is up: the share's apps */
+        netfs_cfg_t *c = menu_netfs();
+        if (c->on && c->ip[0]) { hn_ever = 1; net_scan(); }
+    }
     if (++ticks % 100 == 0) {
         sys_power(&M.power); status_text();
         static int warned;
