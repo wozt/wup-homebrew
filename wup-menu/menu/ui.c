@@ -268,7 +268,7 @@ static const char *net_label(void) {
 /* ---- Wi-Fi */
 #define MAXN 16
 static wifi_net nets[MAXN];
-static int nnets = -1, net_pick, scan_err;        /* -1: not searched yet, -2: no Wi-Fi. net_pick -1: other */
+static int nnets = -1, net_pick;                 /* -1: not searched yet, -2: no Wi-Fi. net_pick -1: other */
 static wifi_net other;                             /* a network joined by its name: one that hides it */
 static const char *fail_why;                       /* how the last try to join went wrong: said in an alert */
 static void spinner(lv_obj_t *parent);
@@ -303,7 +303,6 @@ static void do_scan(void) {
 #endif
     if (menu_radio()) { nnets = -2; show(); return; }
     int n = wifi_scan(nets, MAXN);
-    scan_err = wifi_scan_err();
     nnets = n > 0 ? n : 0;
     show();
 }
@@ -385,6 +384,11 @@ static void other_name(void) {
     ask_text(t, "Password", 8, 63, 1, other_pass);
 }
 static void on_other(lv_event_t *e) { (void)e; net_pick = -1; ask_text("Enter the network's name", "Network Name", 1, 32, 0, other_name); }
+static void on_country(lv_event_t *e) {               /* the radio's regulatory domain: DE or US (next bring-up) */
+    (void)e;
+    if (!strcmp(M.cfg.country, "US")) memcpy(M.cfg.country, "DE", 3); else memcpy(M.cfg.country, "US", 3);
+    wifi_set_country(M.cfg.country); menu_save(); show();
+}
 /* a plain spinner: a quarter of a ring turning at one even speed (LVGL's own also grows and shrinks its arc) */
 static void spin(void *o, int32_t v) { lv_arc_set_rotation(o, v); }
 static void spinner(lv_obj_t *parent) {
@@ -403,8 +407,6 @@ static void wifi_screen(lv_obj_t *scr) {
     if (nnets == -2) {                                  /* the radio did not come up */
         lv_obj_set_flex_align(l, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_t *t = lv_label_create(l); lv_label_set_text(t, "Wi-Fi Not Available"); lv_obj_set_style_text_font(t, &inter_24, 0);
-        { static char e[64]; snprintf(e, sizeof e, "(radio %d)", wifi_up_err());
-          lv_obj_t *d = lv_label_create(l); lv_label_set_text(d, e); lv_obj_set_style_text_font(d, &inter_16, 0); }
         return;
     }
     if (nnets < 0) {
@@ -424,22 +426,9 @@ static void wifi_screen(lv_obj_t *scr) {
     if (M.ip[0] && !listed) row(l, LV_SYMBOL_OK, M.cfg.ssid, NULL, on_joined, NULL);               /* (joined, and hiding its name) */
     lv_obj_t *o = row(l, LV_SYMBOL_WIFI, "Other\xE2\x80\xA6", NULL, on_other, NULL);
     lv_obj_set_style_opa(lv_obj_get_child(o, 0), LV_OPA_TRANSP, 0);                              /* (no symbol; its name in line with the others) */
-    {   /* what the card heard, always: the channels say whether a missing network is on a band or channel
-           the radio does not scan (DFS, region) */
-        static char t[160]; int heard = 0, g5 = 0, ch[24];
-        wifi_scan_stats(&heard, &g5);
-        if (!scan_err && heard) {
-            int nc = wifi_scan_heard(ch, 24); char cl[80] = "";
-            for (int i = 0; i < nc; i++) { char b[10]; snprintf(b, sizeof b, "%s%d", i ? "," : "", ch[i]); strncat(cl, b, sizeof cl - strlen(cl) - 1); }
-            snprintf(t, sizeof t, "Heard %d, %d on 5 GHz (ch %s).", heard, g5, cl[0] ? cl : "?");
-        } else if (nnets) snprintf(t, sizeof t, "The GamePad joins 5 GHz networks.");
-        else {
-            u32 rc = 0, rb = 0, rf = 0; wifi_scan_reply(&rc, &rb, &rf);
-            snprintf(t, sizeof t, "No networks found (scan %s%d, %u/%uB, ch %d). 5 GHz Wi-Fi only.",
-                     scan_err ? "error " : "ok, ", scan_err, rc, rb, wifi_scan_vch());
-        }
-        note(l, t);
-    }
+    row(l, NULL, "Country", M.cfg.country, on_country, NULL);
+    if (nnets) note(l, "The GamePad joins 5 GHz networks.");
+    else note(l, "No networks found. 5 GHz Wi-Fi only.");
 }
 
 /* ---- Settings */
@@ -551,6 +540,7 @@ static const char *ns_err(int e) {
     case ENOENT: return "Nothing at that path";
     case ENOTDIR: return "Not a folder";
     case EINVAL: return "Bad server address";
+    case NS_ERR_OLDAPP: return "It was built for the old menu. Look for a newer one.";
     case EFBIG: return "The app is too big to run this way";
     case ENOTSUP: return "This app can't run from the network";
     case ECANCELED: return "Cancelled";

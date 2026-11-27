@@ -104,6 +104,7 @@ int sdio_write8(int fn, u32 addr, u8 v);
 int sdio_rw(int write, int fn, u32 addr, int inc, void *p, u32 n, u32 blksz);
 typedef struct { char ssid[33]; u8 bssid[6]; u8 channel, secure; s16 rssi; } wifi_net_t;
 int wifi_up(void);
+int wifi_set_country(const char *cc);            /* the regulatory country for the bring-up (2 letters) */
 int wifi_scan(wifi_net_t *out, int max);
 int wifi_ioctl(u32 cmd, void *buf, u32 len, int set);
 int wifi_var(const char *name, void *v, u32 n, int set);

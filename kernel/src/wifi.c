@@ -337,6 +337,15 @@ static void card_state(void) {
     klog("wifi: CCCR %02x %02x %02x %02x %02x %02x %02x %02x, clock CSR %02x\n", c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], v);
 }
 
+/* the regulatory country the bring-up sets ("DE", the domain the v1 menu proved on the pad: the menu can pick another
+   before the first join; it matters at WLC_UP, so a change applies from the next bring-up) */
+static char wifi_cc[3] = "DE";
+int wifi_set_country(const char *cc) {
+    if (!cc || cc[0] < 'A' || cc[0] > 'Z' || cc[1] < 'A' || cc[1] > 'Z' || cc[2]) return -1;
+    wifi_cc[0] = cc[0]; wifi_cc[1] = cc[1]; wifi_cc[2] = 0;
+    return 0;
+}
+
 /* ---- bring-up: the stock driver's sequence (dhd, LVC 0x3d000-0x48000; traced in the emulator on a model of the pad's
    own chip). Facts from the pad, 2026-11-19: the chip is AXI (id 0x16914319: cores from the enumeration ROM); touching
    a core that is not there, or one that is disabled, wedges the backplane until a power cycle; the card keeps its
@@ -501,7 +510,7 @@ again:;
        rates (this 20 MHz radio drops 40/80 MHz networks as join candidates with 802.11n on, and its ROM faults on HT
        rates), infrastructure, no power saving */
     static u8 cc[12];
-    memset(cc, 0, sizeof cc); memcpy(cc, "DE", 2); cc[4] = cc[5] = cc[6] = cc[7] = 0xff; memcpy(cc + 8, "DE", 2);
+    memset(cc, 0, sizeof cc); memcpy(cc, wifi_cc, 2); cc[4] = cc[5] = cc[6] = cc[7] = 0xff; memcpy(cc + 8, wifi_cc, 2);
     wifi_var("country", cc, 12, 1);
     var32("nmode", 0);
     u32 one = 1;

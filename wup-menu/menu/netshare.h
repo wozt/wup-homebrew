@@ -13,6 +13,7 @@ typedef struct { char name[128]; uint64_t size; uint8_t is_dir; } ns_ent_t;   /*
 /* the test of a server: ns_begin_test() starts it; ns_step() (from menu_poll) drives it; ns_result()
    answers once ns_state() is NS_DONE or NS_FAIL (0 ok, else the errno-ish error) */
 enum { NS_IDLE, NS_WORK, NS_DONE, NS_FAIL };
+enum { NS_ERR_OLDAPP = -100 };                  /* the .wup was built for the v1 menu: it can't run here */
 int  ns_state(void);
 int  ns_result(void);
 int  ns_op(void);                            /* which job the client runs: 0 test, 1 browse, 2 upload, 3 fetch */

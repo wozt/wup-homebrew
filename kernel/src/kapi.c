@@ -29,6 +29,7 @@ static int k_wifi_ioctl(u32 cmd, void *b, u32 n, int set) { rlock(); int r = wif
 static int k_wifi_var(const char *name, void *v, u32 n, int set) { rlock(); int r = wifi_var(name, v, n, set); runlock(); return r; }
 static int k_wifi_join(const char *ssid, const u8 *pmk) { rlock(); int r = wifi_join(ssid, pmk); runlock(); return r; }
 static void k_wifi_leave(void) { rlock(); wifi_leave(); runlock(); }
+static int k_wifi_set_country(const char *cc) { return wifi_set_country(cc); }
 static int k_wifi_state(void) { return wifi_state; }
 static int k_wifi_tx(const void *e, u32 n) { rlock(); int r = wifi_tx(e, n); runlock(); return r; }
 static int k_wifi_room(void) { return wifi_tx_room(); }
@@ -94,6 +95,7 @@ static const wupk_t table = {
     CAM_FRAME, k_cam_open, cam_ready, cam_next, cam_convert, cam_stop,
     k_cam_enc_open, k_cam_enc_read, cam_enc_restart, k_cam_enc_starts, cam_enc_stop,
     flash_erase64k,
+    k_wifi_set_country,
 };
 
 void kapi_init(void) {

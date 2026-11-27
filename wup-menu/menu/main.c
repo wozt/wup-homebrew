@@ -114,7 +114,6 @@ const char *menu_connect(const wifi_net *n, const char *pass) {
         M.cfg.wifi_saved = 1; M.cfg.secured = (uint8_t)n->secured; M.cfg.ssid_len = n->ssid_len;
         memcpy(M.cfg.ssid, n->ssid, 33);
         memcpy(M.cfg.pmk, pmk, 32); if (!n->secured) memset(M.cfg.pmk, 0, 32);
-        memcpy(M.cfg.country, WIFI_COUNTRY, 3);
         menu_save();
     }
     memset(pmk, 0, sizeof pmk);
@@ -272,6 +271,8 @@ int main(void) {
     }
     if (M.cfg.brightness < 1 || M.cfg.brightness > 10) M.cfg.brightness = M.cfg.brightness ? 7 : 1;   /* (10..100 %: never dark) */
     hw_backlight(M.cfg.brightness * 10);
+    if (strcmp(M.cfg.country, "DE") && strcmp(M.cfg.country, "US")) memcpy(M.cfg.country, WIFI_COUNTRY, 3);
+    wifi_set_country(M.cfg.country);                   /* before the first bring-up (autojoin or the Wi-Fi screen) */
     if (have && M.cfg.wifi_saved) aj_state = 1;
     share_load();
     nfs_load();

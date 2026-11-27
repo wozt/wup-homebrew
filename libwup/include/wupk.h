@@ -8,7 +8,7 @@
 
 #define WUPK_PTR     0x00000080u
 #define WUPK_MAGIC   0x4b505557u                 /* "WUPK" */
-#define WUPK_VERSION 5
+#define WUPK_VERSION 6
 
 typedef struct wupk {
     uint32_t magic, version;
@@ -93,6 +93,10 @@ typedef struct wupk {
     void (*cam_enc_close)(void);
     /* (version 5) */
     int (*flash_erase64k)(uint32_t addr);         /* a 64 KB block (aligned): ~0.7 s, where 16 erase4k take ~3.8 s */
+    /* (version 6) */
+    int (*wifi_country)(const char *cc);          /* the regulatory country for the next radio bring-up (2 letters,
+                                                    e.g. "DE"); it matters at WLC_UP, so a change applies from the
+                                                    next bring-up. Default "DE" (the v1 menu's proven domain) */
 } wupk_t;
 
 #define WUPK (*(const wupk_t *const *)WUPK_PTR)

@@ -201,7 +201,7 @@ static void advance(void) {
                 || !h.code_size || h.code_size > 0xd9000u
                 || (uint64_t)h.code_off + h.code_size > f_fsize) { fail(EINVAL); return; }
             if (h.hdr_size >= WUP_HDR_V3 && h.code_raw > WUP_HANDOFF_WORK_MAX) { fail(EFBIG); return; }
-            if (h.hdr_size >= WUP_HDR_V3 && !(h.flags & WUP_FLAG_KERNEL)) { fail(EINVAL); return; }   /* a v1 app: not runnable */
+            if (h.hdr_size < WUP_HDR_V3 || !(h.flags & WUP_FLAG_KERNEL)) { fail(NS_ERR_OLDAPP); return; }   /* a v1 app: not runnable */
             f_total = h.code_size; f_next = h.code_off; f_done = 0;
             f_crc = h.code_crc; f_raw = h.hdr_size >= WUP_HDR_V3 ? h.code_raw : 0;
             phase = 3;
