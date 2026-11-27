@@ -43,8 +43,8 @@ int wifi_scan(wifi_net *out, int max) {
     if (r) { scan_err = r < 0 ? r : -r; return scan_err; }
     for (int i = 0; i < 35; i++) DLY(200);         /* (the scan visits every channel: ~7 s) */
     /* WLC_SCAN_RESULTS can answer -14 (not ready) just after the scan ends: ask again, as the kernel's own scan does.
-       The kernel's ioctl cap is 1536 bytes (wifi.c: m[16+1536]): asking for 8 KB is refused with -100. */
-    enum { SCANBUF = 1536 };
+       The kernel takes up to 8 KB per ioctl (wifi.c): 1536 truncated dense areas' lists. */
+    enum { SCANBUF = 8192 };
     u32 hdr[3] = { SCANBUF, 0, 0 };
     int e = -1;
     for (int t = 0; t < 50; t++) {

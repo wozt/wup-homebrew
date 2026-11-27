@@ -152,7 +152,7 @@ static u32 socram_size(void) {
 }
 
 /* ---- SDPCM: frames on function 2 */
-static u8 txf[2048] __attribute__((aligned(4)));
+static u8 txf[8448] __attribute__((aligned(4)));       /* an ioctl's frame is 16 + its buffer: scan results ask 8 KB */
 static u8 rxf[16384 + 64] __attribute__((aligned(4)));
 static u8 seq;
 static u16 reqid;
@@ -294,7 +294,8 @@ int wifi_tx(const void *eth, u32 len) {
 
 /* one CDC command: cmd, the buffer (len bytes; a get's answer comes back into it), set or get. Returns its status. */
 int wifi_ioctl(u32 cmd, void *buf, u32 len, int set) {
-    static u8 m[16 + 1536];
+    static u8 m[16 + 8192];                              /* scan results need kilobytes: 1536 truncated the list
+                                                           (a wanted network past the cut was never seen) */
     if (len > sizeof m - 16) return -100;
     reqid++;
     u32 flags = (u32)reqid << 16 | (set ? 2 : 0);
@@ -500,7 +501,7 @@ again:;
        rates (this 20 MHz radio drops 40/80 MHz networks as join candidates with 802.11n on, and its ROM faults on HT
        rates), infrastructure, no power saving */
     static u8 cc[12];
-    memset(cc, 0, sizeof cc); memcpy(cc, "US", 2); cc[4] = cc[5] = cc[6] = cc[7] = 0xff; memcpy(cc + 8, "US", 2);
+    memset(cc, 0, sizeof cc); memcpy(cc, "DE", 2); cc[4] = cc[5] = cc[6] = cc[7] = 0xff; memcpy(cc + 8, "DE", 2);
     wifi_var("country", cc, 12, 1);
     var32("nmode", 0);
     u32 one = 1;
