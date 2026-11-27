@@ -8,6 +8,8 @@ extern int apps_count;
 int apps_scan(void);
 int apps_load_icon(int i, void *dst);         /* 1 = WUP_ICON x WUP_ICON RGB565 loaded */
 int apps_remove(int i);
+uint64_t apps_footprint(int i);            /* bytes the app takes on the littlefs: the .wup and its folder's data */
+int apps_remove_all(int i);                /* the .wup and its folder's data; the system apps stay */
 static inline char *strcat_(char *d, const char *s) { char *o = d; while (*d) d++; while ((*d++ = *s++)) continue; return o; }
 static inline char *strncat_(char *d, const char *s, int cap) {   /* append within cap characters */
     int n = 0; while (d[n]) n++;

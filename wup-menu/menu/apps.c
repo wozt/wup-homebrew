@@ -4,6 +4,7 @@
  *   /apps/<dir>/<dir>.wup          an app with its own folder (its data lives next to it), or, if that
  *   /apps/<dir>/<one>.wup          name does not exist, the only .wup in the folder
  * The app is told its path (the hand-off block app_path, like argv[0]) and finds its folder from it. */
+#include <stdio.h>
 #include <string.h>
 #include "fs.h"
 #include "wupfmt.h"
@@ -70,3 +71,63 @@ int apps_load_icon(int i, void *dst) {
     return fs_read(a->path, a->icon_off, dst, WUP_ICON * WUP_ICON * 2) == WUP_ICON * WUP_ICON * 2;
 }
 int apps_remove(int i) { return fs_remove(apps_list[i].path); }
+
+/* ---- an app's footprint on the littlefs, and removing it whole ----
+ * An app is /apps/<x>.wup or /apps/<dir>/<file>.wup; in the second form the folder holds its data too. */
+static void app_folder(const char *path, char *out) {   /* "/apps/<dir>/<file>.wup" -> "/apps/<dir>"; else "" */
+    out[0] = 0;
+    const char *s = path;
+    if (strncmp(s, "/apps/", 6)) return;
+    s += 6;
+    const char *slash = strchr(s, '/');
+    if (!slash || slash == s) return;
+    size_t n = (size_t)(slash - s);
+    if (n > 80) return;
+    memcpy(out, "/apps/", 6); memcpy(out + 6, s, n); out[6 + n] = 0;
+}
+static uint64_t dir_bytes(const char *dir, int depth) {  /* every regular file under dir, the .wup included */
+    if (depth >= 8) return 0;
+    lfs_dir_t d; struct lfs_info inf; uint64_t n = 0;
+    if (lfs_dir_open(&fs_lfs, &d, dir)) return 0;
+    while (lfs_dir_read(&fs_lfs, &d, &inf) > 0) {
+        if (!strcmp(inf.name, ".") || !strcmp(inf.name, "..")) continue;
+        char p[192]; snprintf(p, sizeof p, "%s/%s", dir, inf.name);
+        if (inf.type == LFS_TYPE_DIR) n += dir_bytes(p, depth + 1); else n += inf.size;
+    }
+    lfs_dir_close(&fs_lfs, &d);
+    return n;
+}
+uint64_t apps_footprint(int i) {
+    if (i < 0 || i >= apps_count) return 0;
+    char d[96]; app_folder(apps_list[i].path, d);
+    if (d[0]) return dir_bytes(d, 0);
+    int s = fs_filesize(apps_list[i].path);
+    return s > 0 ? (uint64_t)s : 0;
+}
+/* everything inside dir, then dir itself; one entry at a time (the listing changes as it goes) */
+static int wipe_dir(const char *dir, int depth) {
+    if (depth >= 8) return -1;
+    static char path[8][192]; int r = 0;
+    for (;;) {
+        lfs_dir_t d; struct lfs_info inf; int found = 0;
+        if (lfs_dir_open(&fs_lfs, &d, dir)) return -1;
+        while (lfs_dir_read(&fs_lfs, &d, &inf) > 0) {
+            if (!strcmp(inf.name, ".") || !strcmp(inf.name, "..")) continue;
+            snprintf(path[depth], sizeof path[0], "%s/%s", dir, inf.name); found = 1; break;
+        }
+        lfs_dir_close(&fs_lfs, &d);
+        if (!found) break;
+        if (inf.type == LFS_TYPE_DIR) wipe_dir(path[depth], depth + 1);
+        if (lfs_remove(&fs_lfs, path[depth])) r = -1;
+    }
+    return r;
+}
+int apps_remove_all(int i) {                        /* the .wup and its folder's data; the system apps stay */
+    if (i < 0 || i >= apps_count) return -1;
+    app_entry_t *a = &apps_list[i];
+    if (!strncmp(a->path, "/apps/app_store/", 18) || !strncmp(a->path, "/apps/software_update/", 24)) return -1;
+    char d[96]; app_folder(a->path, d);
+    int r = fs_remove(a->path);
+    if (d[0]) { if (wipe_dir(d, 0)) r = -1; if (lfs_remove(&fs_lfs, d)) r = -1; }
+    return r;
+}

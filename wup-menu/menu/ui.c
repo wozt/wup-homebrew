@@ -1030,7 +1030,7 @@ static void on_app(lv_event_t *e) {
 static void on_focus(lv_event_t *e) { home_sel = (int)(intptr_t)lv_event_get_user_data(e); }
 static void home_screen(lv_obj_t *scr) {
     int n = apps_count + hn_count;
-    lv_obj_t *l = page(scr, "Homebrew Menu", n ? "+ App Store    Y Netloader    X Settings    A Open" : "+ App Store    Y Netloader    X Settings");
+    lv_obj_t *l = page(scr, "Homebrew Menu", n ? "+ App Store    Y Netloader    X Settings    A Open    - Manage" : "+ App Store    Y Netloader    X Settings    - Manage");
     for (int i = 0; i < ICONS; i++) { free((void *)icon[i].data); icon[i].data = 0; }
     for (int i = 0; i < NICON_NET; i++) { free((void *)nicon[i].data); nicon[i].data = 0; }
     for (int i = 0; i < apps_count; i++) {
@@ -1084,6 +1084,86 @@ static void home_screen(lv_obj_t *scr) {
         lv_obj_t *t = lv_label_create(l);
         lv_label_set_text(t, M.fs_ok ? "No Apps Installed" : "Storage Not Available"); lv_obj_set_style_text_font(t, &inter_24, 0);
     }
+}
+
+/* ---- an app's info: - on the home list. What it takes, then Send to Network Storage or Delete ---- */
+static int app_info_sel;
+static lv_obj_t *up_label;
+static void app_screen(lv_obj_t *scr), upload_screen(lv_obj_t *scr), netapp_screen(lv_obj_t *scr);
+static void app_del_done(void) {
+    if (apps_remove_all(app_info_sel)) { wup_alert("Couldn't Delete the App", NULL, "OK", NULL, NULL, 0); return; }
+    apps_scan();
+    if (home_sel >= apps_count) home_sel = apps_count - 1;
+    if (home_sel < 0) home_sel = 0;
+    focus_at[0] = home_sel;
+    if (stack[depth] == app_screen) pop();
+    wup_notice("App Deleted", 1);
+}
+static void on_app_del(lv_event_t *e) { (void)e; char t[96]; snprintf(t, sizeof t, "\"%s\" and its data are erased. This can't be undone.", apps_list[app_info_sel].name); wup_alert("Delete App", t, "Delete", "Cancel", app_del_done, 1); }
+static void on_app_send(lv_event_t *e) {
+    (void)e;
+    netfs_cfg_t *c = menu_netfs();
+    if (!c->on || !c->ip[0]) { wup_alert("Network Storage Is Off", "Turn it on and set a server address first", "OK", NULL, NULL, 0); return; }
+    const char *base = strrchr(apps_list[app_info_sel].path, '/'); base = base ? base + 1 : apps_list[app_info_sel].path;
+    char remote[360]; snprintf(remote, sizeof remote, "/%s", base);
+    if (ns_begin_upload(c, apps_list[app_info_sel].path, remote) == NS_WORK) { up_label = 0; push(upload_screen); }
+    else { static char t[128]; snprintf(t, sizeof t, "%s", ns_err(ns_result())); wup_alert("Couldn't Send the App", t, "OK", NULL, NULL, 0); }
+}
+/* a network app's info: - on the home list — version and size, then Delete (the share must be --read-write) */
+static int net_del_pending = -1;                 /* hn_apps index being deleted, -1 = none */
+static void netapp_del_go(void) {
+    int j = app_info_sel - apps_count;
+    if (j < 0 || j >= hn_count) return;
+    netfs_cfg_t *c = menu_netfs();
+    char r[320]; snprintf(r, sizeof r, "/%s", hn_apps[j].name);
+    if (ns_begin_delete(c, r) == NS_WORK) { net_del_pending = j; pop(); }
+    else { static char t[128]; snprintf(t, sizeof t, "%s", ns_err(ns_result())); wup_alert("Couldn't Delete the App", t, "OK", NULL, NULL, 0); }
+}
+static void on_netapp_del(lv_event_t *e) {
+    (void)e;
+    int j = app_info_sel - apps_count;
+    if (j < 0 || j >= hn_count) return;
+    char t[160]; snprintf(t, sizeof t, "\"%s\" is erased from the network storage. This can't be undone.", hn_apps[j].name);
+    wup_alert("Delete App", t, "Delete", "Cancel", netapp_del_go, 1);
+}
+static void netapp_screen(lv_obj_t *scr) {
+    int j = app_info_sel - apps_count;
+    if (j < 0 || j >= hn_count) { pop(); return; }
+    lv_obj_t *l = page(scr, hn_apps[j].name, "B Back    A Select");
+    char t[400], sz[24];
+    size_str(sz, sizeof sz, hn_apps[j].size);
+    snprintf(t, sizeof t, "%s · %s\n\nFrom the network share: it runs straight from there, using none of the GamePad's flash.",
+             hn_ver[j][0] ? hn_ver[j] : "?", sz);
+    note(l, t);
+    row(l, LV_SYMBOL_TRASH, "Delete App", NULL, on_netapp_del, NULL);
+}
+static void app_info(void) {
+    if (home_sel >= apps_count) {                  /* a network app: its own info screen */
+        int j = home_sel - apps_count;
+        if (j < 0 || j >= hn_count) return;
+        app_info_sel = home_sel; push(netapp_screen);
+        return;
+    }
+    if (apps_count) { app_info_sel = home_sel; push(app_screen); }
+}
+static void app_screen(lv_obj_t *scr) {
+    lv_obj_t *l = page(scr, apps_list[app_info_sel].name, "B Back    A Select");
+    char sz[24], pc[40] = "", t[256];
+    const app_entry_t *a = &apps_list[app_info_sel];
+    uint64_t bytes = apps_footprint(app_info_sel), total = (uint64_t)fs_size_kb() * 1024;
+    size_str(sz, sizeof sz, bytes);
+    if (total) { uint64_t pc10 = bytes * 1000 / total; snprintf(pc, sizeof pc, " — %llu.%llu%% of the GamePad's storage", (unsigned long long)(pc10 / 10), (unsigned long long)(pc10 % 10)); }
+    snprintf(t, sizeof t, "%s%s\n%s", a->version[0] ? a->version : " ", pc, sz);
+    note(l, t);
+    netfs_cfg_t *c = menu_netfs();
+    if (c->on && c->ip[0]) row(l, LV_SYMBOL_UPLOAD, "Send to Network Storage", NULL, on_app_send, NULL);
+    row(l, LV_SYMBOL_TRASH, "Delete App", NULL, on_app_del, NULL);
+}
+static void upload_screen(lv_obj_t *scr) {
+    lv_obj_t *l = page(scr, "Network Storage", "B Back");
+    lv_obj_t *sub = 0;
+    busy(l, "Sending\xE2\x80\xA6", "", &sub, NULL);
+    up_label = sub;
 }
 
 /* ---- the menu's loop */
@@ -1141,6 +1221,7 @@ void ui_step(void) {
         if (upd_state == UPD_AVAILABLE && (pressed & WUP_A)) { pressed &= ~WUP_A; sound_click(); defer(upd_go); }
     }
     if (stack[depth] == kb_screen && kb_obj) kb_buttons(pressed, &pressed);   /* the keyboard: B, Y, X, -, +, L and R type */
+    if (!depth && stack[depth] == home_screen && (apps_count + hn_count) && (pressed & WUP_MINUS)) { sound_click(); app_info(); }
     if (pressed & WUP_B) {
         if (stack[depth] == netloader_screen) { wuplink_close(); nl_title = 0; }
         if (stack[depth] == fetch_screen) wup_lvgl_hold(0);   /* presents back on before the pop */
@@ -1169,6 +1250,30 @@ void ui_step(void) {
         } else if (ns_state() == NS_FAIL) {
             int r = ns_result(); wup_lvgl_hold(0); pop();
             if (r != ECANCELED) { static char t[128]; snprintf(t, sizeof t, "%s", ns_err(r)); wup_alert("Couldn't Fetch the App", t, "OK", NULL, NULL, 0); }
+        }
+    }
+    if (stack[depth] == upload_screen) {
+        if (ns_state() == NS_DONE) { pop(); hn_ever = 0; wup_notice("App Sent", 1); }   /* it is on the share now: list it */
+        else if (ns_state() == NS_FAIL) {
+            int r = ns_result(); pop();
+            if (r != ECANCELED) { static char t[128]; snprintf(t, sizeof t, "%s", ns_err(r)); wup_alert("Couldn't Send the App", t, "OK", NULL, NULL, 0); }
+        } else if (up_label) {
+            int p = ns_upload_progress();
+            if (p >= 0) { char t[16]; snprintf(t, sizeof t, "%d%%", p); if (strcmp(lv_label_get_text(up_label), t)) lv_label_set_text(up_label, t); }
+        }
+    }
+    if (net_del_pending >= 0 && ns_state() != NS_WORK) {   /* a share delete answered */
+        int j = net_del_pending; net_del_pending = -1;
+        if (ns_state() == NS_DONE && ns_op() == 5) {
+            memmove(&hn_apps[j], &hn_apps[j + 1], (size_t)(hn_count - j - 1) * sizeof *hn_apps);
+            memmove(&hn_ver[j], &hn_ver[j + 1], (size_t)(hn_count - j - 1) * sizeof *hn_ver);
+            memset(&hn_ver[hn_count - 1], 0, sizeof hn_ver[0]); hn_count--;
+            hn_pi = hn_pw = hn_wait = hn_changed = 0;         /* the probes start over on the rescan */
+            hn_ever = 0;                                      /* and the share is listed again for the truth */
+            wup_notice("App Deleted", 1);
+        } else {
+            static char t[128]; snprintf(t, sizeof t, "%s", ns_err(ns_result()));
+            wup_alert("Couldn't Delete the App", t, "OK", NULL, NULL, 0);
         }
     }
     if (!hn_ever && !depth && stack[depth] == home_screen && M.ip[0]) {   /* once Wi-Fi is up: the share's apps */
