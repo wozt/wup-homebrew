@@ -12,7 +12,8 @@ static int ioctl_(u32 cmd, const void *data, u32 dlen, u32 n, int set) {
     __builtin_memset(iobuf, 0, n); if (data) __builtin_memcpy(iobuf, data, dlen < n ? dlen : n);
     return WUPK->wifi_ioctl(cmd, iobuf, n, set);
 }
-static int radio_ok;
+static int radio_ok, scan_err;
+int wifi_scan_err(void) { return scan_err; }        /* the last wifi_scan's error (0: none, -2..: see wifi_hw.c) */
 int wifi_bringup(void) {
     if (radio_ok) return 0;
     int r = WUPK->wifi_up();
@@ -25,10 +26,11 @@ int wifi_scan(wifi_net *out, int max) {
     p[42] = 2;
     for (int i = 0; i < 4; i++) *(int *)(p + 44 + 4 * i) = -1;
     int r = ioctl_(50 /* WLC_SCAN */, p, sizeof p, sizeof p, 1);
-    if (r) return r < 0 ? r : -r;
+    if (r) { scan_err = r < 0 ? r : -r; return scan_err; }
     for (int i = 0; i < 35; i++) DLY(200);         /* (the scan visits every channel: ~7 s) */
     u32 hdr[3] = { 0x2000, 0, 0 };
-    if (ioctl_(51 /* WLC_SCAN_RESULTS */, hdr, 12, 0x2000, 0)) return -1;
+    if (ioctl_(51 /* WLC_SCAN_RESULTS */, hdr, 12, 0x2000, 0)) { scan_err = -51; return -1; }
+    scan_err = 0;
     u32 buflen = *(u32 *)iobuf, count = *(u32 *)(iobuf + 8), off = 12;
     if (buflen > 0x2000) buflen = 0x2000;
     int n = 0;

@@ -9,6 +9,7 @@ typedef struct { char ssid[33]; u8 ssid_len, bssid[6]; int channel, rssi, secure
 extern void (*wifi_wait)(int ms);                 /* how to wait (default: a plain sleep) */
 int wifi_bringup(void);                           /* 0 = interface up */
 int wifi_scan(wifi_net *out, int max);            /* 5 GHz networks, strongest first; < 0 = error */
+int wifi_scan_err(void);                          /* the last scan's ioctl error (0: the scan itself worked) */
 int wifi_join(const wifi_net *net, const u8 *pmk);/* pmk = NULL for an open network */
 int wifi_associated(const wifi_net *net);
 int wifi_leave(void);                             /* off the network it is on */

@@ -268,7 +268,7 @@ static const char *net_label(void) {
 /* ---- Wi-Fi */
 #define MAXN 16
 static wifi_net nets[MAXN];
-static int nnets = -1, net_pick;                   /* -1: not searched yet, -2: no Wi-Fi. net_pick -1: other */
+static int nnets = -1, net_pick, scan_err;        /* -1: not searched yet, -2: no Wi-Fi. net_pick -1: other */
 static wifi_net other;                             /* a network joined by its name: one that hides it */
 static const char *fail_why;                       /* how the last try to join went wrong: said in an alert */
 static void spinner(lv_obj_t *parent);
@@ -303,6 +303,7 @@ static void do_scan(void) {
 #endif
     if (menu_radio()) { nnets = -2; show(); return; }
     int n = wifi_scan(nets, MAXN);
+    scan_err = n < 0 ? n : wifi_scan_err();
     nnets = n > 0 ? n : 0;
     show();
 }
@@ -421,7 +422,8 @@ static void wifi_screen(lv_obj_t *scr) {
     if (M.ip[0] && !listed) row(l, LV_SYMBOL_OK, M.cfg.ssid, NULL, on_joined, NULL);               /* (joined, and hiding its name) */
     lv_obj_t *o = row(l, LV_SYMBOL_WIFI, "Other\xE2\x80\xA6", NULL, on_other, NULL);
     lv_obj_set_style_opa(lv_obj_get_child(o, 0), LV_OPA_TRANSP, 0);                              /* (no symbol; its name in line with the others) */
-    note(l, nnets ? "The GamePad joins 5 GHz networks." : "No networks found. The GamePad uses 5 GHz Wi-Fi only.");
+    if (nnets) note(l, "The GamePad joins 5 GHz networks.");
+    else { static char t[80]; snprintf(t, sizeof t, "No networks found (scan %s%d). 5 GHz Wi-Fi only.", scan_err ? "error " : "ok, ", scan_err); note(l, t); }
 }
 
 /* ---- Settings */
