@@ -16,7 +16,9 @@ static int radio_ok, scan_err, up_err;
 int wifi_up_err(void) { return up_err; }            /* the last wifi_bringup's kernel error (0: up) */
 static int dbg_heard, dbg_5g;                          /* what the card heard: BSS entries, and those on 5 GHz */
 static int dbg_ch[24], dbg_nch;                        /* the channels heard (for the "0 networks" note) */
+static u32 dbg_count, dbg_buflen, dbg_first;           /* the raw reply: entry count, bytes, first entry's length */
 int wifi_scan_err(void) { return scan_err; }        /* the last wifi_scan's error (0: none, -2..: see wifi_hw.c) */
+void wifi_scan_reply(u32 *count, u32 *buflen, u32 *first) { *count = dbg_count; *buflen = dbg_buflen; *first = dbg_first; }
 int wifi_scan_heard(int *ch, int max) {              /* channels the last scan heard; returns their count */
     int n = dbg_nch < max ? dbg_nch : max;
     for (int i = 0; i < n; i++) ch[i] = dbg_ch[i];
@@ -51,7 +53,9 @@ int wifi_scan(wifi_net *out, int max) {
     if (e) { scan_err = e < 0 ? e : -e; return -1; }
     scan_err = 0;
     dbg_heard = dbg_5g = dbg_nch = 0;
-    u32 buflen = *(u32 *)iobuf, count = *(u32 *)(iobuf + 8), off = 12;
+    dbg_count = *(u32 *)(iobuf + 8); dbg_buflen = *(u32 *)iobuf;
+    dbg_first = dbg_count && dbg_buflen >= 16 ? *(u32 *)(iobuf + 12 + 4) : 0;
+    u32 buflen = dbg_buflen, count = dbg_count, off = 12;
     if (buflen > SCANBUF) buflen = SCANBUF;
     int n = 0;
     for (u32 i = 0; i < count && off + 80 <= buflen; i++) {
