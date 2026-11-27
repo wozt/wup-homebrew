@@ -303,7 +303,7 @@ static void do_scan(void) {
 #endif
     if (menu_radio()) { nnets = -2; show(); return; }
     int n = wifi_scan(nets, MAXN);
-    scan_err = n < 0 ? n : wifi_scan_err();
+    scan_err = wifi_scan_err();
     nnets = n > 0 ? n : 0;
     show();
 }
