@@ -83,14 +83,16 @@ int open(const char *path, int flags, ...) {
     return FD_FILES + i;
 }
 int ftruncate(int fd, off_t len) {                       /* (a file shortened or lengthened: littlefs's own) */
-    lfs_file_t *f = file(fd); if (!f) return -1;
-    int r = lfs_file_truncate(&fs_lfs, f, (lfs_off_t)len);
+    int i = slot(fd); if (i < 0) return -1;
+    if (files[i].net) { errno = EINVAL; return -1; }
+    int r = lfs_file_truncate(&fs_lfs, &files[i].u.lf, (lfs_off_t)len);
     return r ? lfs_fail(r) : 0;
 }
 int fsync(int fd) {                                       /* (what was written, kept: littlefs commits a file's
                                                              contents at its sync or close) */
-    lfs_file_t *f = file(fd); if (!f) return -1;
-    int r = lfs_file_sync(&fs_lfs, f);
+    int i = slot(fd); if (i < 0) return -1;
+    if (files[i].net) return 0;
+    int r = lfs_file_sync(&fs_lfs, &files[i].u.lf);
     return r ? lfs_fail(r) : 0;
 }
 long sysconf(int name) {                                  /* (what is asked of it: the page size, one processor) */
