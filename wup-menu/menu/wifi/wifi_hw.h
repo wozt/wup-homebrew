@@ -13,6 +13,7 @@ int wifi_scan_err(void);                          /* the last scan's ioctl error
 int wifi_scan_heard(int *ch, int max);            /* the channels the last scan heard (diagnostic) */
 void wifi_scan_stats(int *heard, int *g5);        /* BSS entries heard, and those on 5 GHz */
 void wifi_scan_reply(u32 *count, u32 *buflen, u32 *first);   /* the raw WLC_SCAN_RESULTS reply */
+int wifi_scan_vch(void);                                /* WLC_GET_VALID_CHANNELS count, -1 on error */
 int wifi_up_err(void);                            /* the last bring-up's kernel error (0: the radio is up) */
 int wifi_join(const wifi_net *net, const u8 *pmk);/* pmk = NULL for an open network */
 int wifi_associated(const wifi_net *net);

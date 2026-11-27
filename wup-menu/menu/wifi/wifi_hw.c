@@ -17,8 +17,10 @@ int wifi_up_err(void) { return up_err; }            /* the last wifi_bringup's k
 static int dbg_heard, dbg_5g;                          /* what the card heard: BSS entries, and those on 5 GHz */
 static int dbg_ch[24], dbg_nch;                        /* the channels heard (for the "0 networks" note) */
 static u32 dbg_count, dbg_buflen, dbg_first;           /* the raw reply: entry count, bytes, first entry's length */
+static int dbg_vch;                                    /* channels the firmware says are valid (-1: not asked) */
 int wifi_scan_err(void) { return scan_err; }        /* the last wifi_scan's error (0: none, -2..: see wifi_hw.c) */
 void wifi_scan_reply(u32 *count, u32 *buflen, u32 *first) { *count = dbg_count; *buflen = dbg_buflen; *first = dbg_first; }
+int wifi_scan_vch(void) { return dbg_vch; }            /* WLC_GET_VALID_CHANNELS count, -1 on error */
 int wifi_scan_heard(int *ch, int max) {              /* channels the last scan heard; returns their count */
     int n = dbg_nch < max ? dbg_nch : max;
     for (int i = 0; i < n; i++) ch[i] = dbg_ch[i];
@@ -83,6 +85,7 @@ int wifi_scan(wifi_net *out, int max) {
     }
     for (int i = 1; i < n; i++)
         for (int j = i; j > 0 && out[j].rssi > out[j - 1].rssi; j--) { wifi_net t = out[j]; out[j] = out[j - 1]; out[j - 1] = t; }
+    { u32 q = 60; dbg_vch = ioctl_(217 /* WLC_GET_VALID_CHANNELS */, &q, 4, 256, 0) ? -1 : *(int *)iobuf; }
     return n;
 }
 int wifi_join(const wifi_net *net, const u8 *pmk) { return WUPK->wifi_join(net->ssid, pmk); }

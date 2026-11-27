@@ -434,8 +434,8 @@ static void wifi_screen(lv_obj_t *scr) {
             snprintf(t, sizeof t, "Heard %d, %d on 5 GHz (ch %s).", heard, g5, cl[0] ? cl : "?");
         } else {
             u32 rc = 0, rb = 0, rf = 0; wifi_scan_reply(&rc, &rb, &rf);
-            snprintf(t, sizeof t, "No networks found (scan %s%d, %u/%uB, first %u). 5 GHz Wi-Fi only.",
-                     scan_err ? "error " : "ok, ", scan_err, rc, rb, rf);
+            snprintf(t, sizeof t, "No networks found (scan %s%d, %u/%uB, ch %d). 5 GHz Wi-Fi only.",
+                     scan_err ? "error " : "ok, ", scan_err, rc, rb, wifi_scan_vch());
         }
         note(l, t);
     }
