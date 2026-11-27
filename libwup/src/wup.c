@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "wup.h"
 #include "wup_hw.h"
+#include "netfs.h"
 #include "armcpu.h"
 typedef uint32_t u32; typedef uint8_t u8; typedef uint16_t u16;
 #define REG(a) (*(volatile u32 *)(a))
@@ -56,6 +57,7 @@ static void app_main(void) {
                                                        count from here: mounting a fresh filesystem can take longer) */
     wup__time_end();
     wup_audio_close();
+    netfs_close_all();                                  /* /net: the connection closed before lwIP's threads stop */
     if (wup__net_exit) wup__net_exit();                /* sockets closed, lwIP's threads stopped, the radio's frames dropped
                                                           again: first, as lwIP's threads never end (waiting for them
                                                           below cost every networked app a second to close) */

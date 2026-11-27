@@ -23,7 +23,7 @@ import paths
 BASE, LIMIT = 0x080000, 0x253000                         # the app's block (include/wup_ram.h)
 HEAP_MIN = 0x10000                                       # at least this much heap left after .bss
 NM = paths.NM
-LIB = ([os.path.join(paths.SRC, f) for f in ('wup.c', 'sys.c', 'kernel.c', 'pthread.c', 'time.c', 'atomic.c', 'gfx.c', 'fonts.c', 'wup_hw.c', 'fs.c', 'video.c', 'mem.S')]
+LIB = ([os.path.join(paths.SRC, f) for f in ('wup.c', 'sys.c', 'kernel.c', 'pthread.c', 'time.c', 'atomic.c', 'gfx.c', 'fonts.c', 'wup_hw.c', 'fs.c', 'video.c', 'netfs.c', 'mem.S')]
        + [os.path.join(paths.THIRD, 'littlefs', f) for f in ('lfs.c', 'lfs_util.c')])
 OBJCOPY = paths.OBJCOPY
 IGNORED = ('large', 'screen8', 'text_in_big', 'text_in_app')   # (v1's memory layouts: one layout now)
