@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 #ifndef RELEASES_URL
-#define RELEASES_URL "https://api.github.com/repos/ravensclawx/wup-homebrew/releases/latest"
+#define RELEASES_URL "https://api.github.com/repos/wozt/wup-homebrew/releases/latest"   /* the fork's own: an upstream release has no Network Storage */
 #endif
 #define RELEASE_ASSET "wup-homebrew-update.zip"
 
