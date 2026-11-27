@@ -28,18 +28,20 @@ int wifi_scan(wifi_net *out, int max) {
     int r = ioctl_(50 /* WLC_SCAN */, p, sizeof p, sizeof p, 1);
     if (r) { scan_err = r < 0 ? r : -r; return scan_err; }
     for (int i = 0; i < 35; i++) DLY(200);         /* (the scan visits every channel: ~7 s) */
-    /* WLC_SCAN_RESULTS can answer -14 (not ready) just after the scan ends: ask again, as the kernel's own scan does */
-    u32 hdr[3] = { 0x2000, 0, 0 };
+    /* WLC_SCAN_RESULTS can answer -14 (not ready) just after the scan ends: ask again, as the kernel's own scan does.
+       The kernel's ioctl cap is 1536 bytes (wifi.c: m[16+1536]): asking for 8 KB is refused with -100. */
+    enum { SCANBUF = 1536 };
+    u32 hdr[3] = { SCANBUF, 0, 0 };
     int e = -1;
     for (int t = 0; t < 50; t++) {
-        e = ioctl_(51 /* WLC_SCAN_RESULTS */, hdr, 12, 0x2000, 0);
+        e = ioctl_(51 /* WLC_SCAN_RESULTS */, hdr, 12, SCANBUF, 0);
         if (e != -14) break;
         DLY(20);
     }
     if (e) { scan_err = e < 0 ? e : -e; return -1; }
     scan_err = 0;
     u32 buflen = *(u32 *)iobuf, count = *(u32 *)(iobuf + 8), off = 12;
-    if (buflen > 0x2000) buflen = 0x2000;
+    if (buflen > SCANBUF) buflen = SCANBUF;
     int n = 0;
     for (u32 i = 0; i < count && off + 80 <= buflen; i++) {
         u8 *b = iobuf + off; u32 blen = *(u32 *)(b + 4);
